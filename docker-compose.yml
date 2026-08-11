@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: awsug-lao-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: awsug
+      POSTGRES_PASSWORD: awsug_local_dev
+      POSTGRES_DB: awsug_lao
+    # 5433 on the host: a natively installed Postgres commonly already owns 5432,
+    # and Docker's port mapping loses that race silently.
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U awsug -d awsug_lao"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

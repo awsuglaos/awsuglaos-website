@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Tickets carry personal data behind unguessable URLs, and the admin area is
+# authenticated — neither belongs in an index.
+Disallow: /admin
+Disallow: /en/admin
+Disallow: /events/*/ticket/
+Disallow: /en/events/*/ticket/
+Disallow: /newsletter
+
+Sitemap: https://awsuglaos.la/sitemap.xml

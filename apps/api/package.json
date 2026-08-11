@@ -1,0 +1,33 @@
+{
+  "name": "@awsug/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts",
+    "./lambda": "./src/lambda.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/dev.ts",
+    "check": "tsc --noEmit",
+    "_comment_test": "No unit tests yet — the routes are covered end-to-end by apps/web's Playwright suite, which drives this API through the backoffice.",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@awsug/core": "workspace:*",
+    "@awsug/db": "workspace:*",
+    "@awsug/shared": "workspace:*",
+    "aws-jwt-verify": "^5.2.1",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hono/node-server": "^2.1.0",
+    "@types/node": "^26.2.0",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.23.11",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

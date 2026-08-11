@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Matches docker-compose.yml, but on port 5432 — a CI runner has no competing
+  # local Postgres to dodge.
+  DATABASE_URL: postgresql://awsug:awsug_local_dev@localhost:5432/awsug_lao
+  DEV_AUTH: 'true'
+  PUBLIC_SITE_URL: http://localhost:4173
+  PUBLIC_API_URL: http://localhost:3000
+
+jobs:
+  verify:
+    name: Lint, typecheck and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: awsug
+          POSTGRES_PASSWORD: awsug_local_dev
+          POSTGRES_DB: awsug_lao
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U awsug -d awsug_lao"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Seed
+        run: pnpm db:seed
+
+      - run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Install Playwright browser
+        run: pnpm --filter @awsug/web exec playwright install --with-deps chromium
+
+      - name: Start API
+        run: pnpm --filter @awsug/api run dev &
+
+      - name: Wait for API
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0
+            sleep 1
+          done
+          echo "API did not become healthy" >&2
+          exit 1
+
+      - name: End-to-end tests
+        run: pnpm --filter @awsug/web run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+  deploy:
+    name: Deploy
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    # OIDC: GitHub mints a short-lived token and assumes an AWS role. No
+    # long-lived access keys are stored as repository secrets.
+    permissions:
+      id-token: write
+      contents: read
+
+    environment:
+      name: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: Deploy
+        env:
+          SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+          SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
+        run: |
+          STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+          pnpm sst deploy --stage "$STAGE"
+
+      - name: Apply database migrations
+        run: |
+          STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+          # `sst shell` injects the linked resource environment (cluster ARN,
+          # secret ARN, database name), so drizzle-kit talks to Aurora over the
+          # Data API with no credentials written to disk.
+          pnpm sst shell --stage "$STAGE" -- pnpm db:migrate

@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm requires postinstall scripts to be allowlisted explicitly.
+# esbuild's postinstall links the correct platform binary; without it, tsx,
+# drizzle-kit and Vite cannot run.
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+minimumReleaseAgeExclude:
+  - '@lucide/svelte@1.31.0'

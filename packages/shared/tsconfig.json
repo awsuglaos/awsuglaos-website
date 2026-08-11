@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "noEmit": true,
+    // This package runs in both the browser and on Lambda, so it takes DOM
+    // rather than @types/node — that covers the timer globals without tying an
+    // isomorphic package to Node's type surface.
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["src/**/*.ts"]
+}

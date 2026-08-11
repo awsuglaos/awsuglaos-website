@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="%paraglide.lang%">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+
+		<!-- Generated from the brand mark by scripts/generate-brand-assets.mjs. -->
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<link rel="icon" href="%sveltekit.assets%/favicon-32.png" sizes="32x32" type="image/png" />
+		<link rel="icon" href="%sveltekit.assets%/favicon-192.png" sizes="192x192" type="image/png" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+
+		<!--
+			Tints the browser UI to whichever surface is actually behind it, so the
+			address bar does not stay light while the page is dark. The values are
+			`--background` from theme.css, resolved to sRGB.
+		-->
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141629" />
+
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<!--
+			IMPECCABLE DIRECTION CONTRACT · awsug-lao · surface: public site · mode: Persuade
+
+			It lives here rather than in the root layout because the Svelte compiler strips
+			comments from production output, and a design contract nobody can read in the
+			shipped page is a contract nobody can audit. app.html is a static shell.
+
+			THESIS: The community's reach drawn as infrastructure — the country as a live
+			survey chart, its cities as nodes, the next meetup pulsing on Vientiane. Refuses
+			the flat grey object this replaced, and refuses the neon-city flythrough by
+			staying a chart: line-work and annotation, never a rendered landscape.
+
+			OWN-WORLD: Real SRTM contours of Laos, traced at 250 m and drawn at their true
+			elevations; a lit national border; arcs bowing between cities with a packet
+			running each; radar beacons on the venues throwing vertical light columns; a slow
+			sweep. Everything is emissive line-work coloured from the tokens, so the chart
+			inverts with the theme — a console at night, ink on paper by day. Type is the
+			annotation layer: haloed tracked mono place names on leader lines, HUD readouts
+			in the corners carrying only facts this site actually holds.
+
+			STORY: A visitor sees their own country as a live network, one pulse on
+			Vientiane, reads the venue under it, and registers.
+
+			FIRST VIEWPORT: Near-top-down chart behind the content. Headline top-left on
+			clean ground, 5xl→8xl, primary action beneath. Laos fills the right of a
+			landscape frame laid across the diagonal; in portrait it stands upright in the
+			lower half with only the hub labelled. It reads flat until the pointer moves it,
+			and the contour stack, the bowed arcs and the beacon columns are what the tilt
+			reveals — a 2D map that is genuinely three-dimensional.
+
+			FORM: Brief-pinned by the user across two rounds; rendition chosen from a
+			four-option hand against solid relief, wireframe mesh, and contours-over-relief.
+			No concept seed key: a pinned brief beats the roll, so none was drawn.
+
+			FINISH: unreviewed and undocumented is unfinished; this build ends with the
+			finish review, the verdict, and DESIGN.md.
+		-->
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

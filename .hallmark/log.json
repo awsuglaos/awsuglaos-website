@@ -1,0 +1,15 @@
+[
+  {
+    "date": "2026-08-10",
+    "scope": "app",
+    "genre": "modern-minimal",
+    "macrostructure": "Marquee Hero (marketing) / Long Document (content) / Workbench (app)",
+    "theme": "existing violet OKLCH set in theme.css",
+    "theme_axes": "light+dark dual / grotesk-sans (Inter) / cool-violet 293°",
+    "nav": "N1b three-section",
+    "footer": "Ft5 statement",
+    "enrichment": "none",
+    "design_system": "design.md",
+    "brief": "AWS User Group Lao — full redesign of apps/web: 9 public + 18 admin pages, dark/light, shadcn-svelte throughout, brand logo applied"
+  }
+]

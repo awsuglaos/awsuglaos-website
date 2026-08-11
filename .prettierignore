@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.svelte-kit
+.turbo
+.sst
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+packages/db/drizzle
+apps/web/src/lib/paraglide

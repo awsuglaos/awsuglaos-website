@@ -1,0 +1,215 @@
+/* Hallmark · genre: modern-minimal · design-system: design.md · designed-as-app
+ * macrostructures: Marquee Hero (marketing) · Long Document (content) · Workbench (app)
+ * nav: N1b three-section · footer: Ft5 statement · enrichment: none
+ * theme: existing violet OKLCH set in theme.css (light + dark), unchanged
+ */
+
+/*
+ * Design tokens live in theme.css at the repo root (shadcn-svelte / Tailwind v4
+ * format). It is imported rather than copied so there is one source of truth.
+ * That file also pulls in Tailwind itself.
+ */
+@import '../../../../theme.css';
+@plugin '@tailwindcss/typography';
+
+/* Self-hosted so first paint never waits on a third-party font host. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/noto-sans-lao';
+
+/* The CSS entry sits outside the app root, so name the scan targets explicitly. */
+@source '../../src/**/*.{html,js,svelte,ts}';
+
+@theme inline {
+	--font-sans:
+		'Inter Variable', 'Noto Sans Lao Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+	/*
+	 * Lao stacks vowel and tone marks above and below the consonant line, so it
+	 * needs noticeably more leading than Latin text — at Tailwind's default
+	 * leading the marks collide with the line above. Scoped to Lao content only
+	 * so English paragraphs keep their intended rhythm.
+	 */
+	:lang(lo) {
+		line-height: 1.85;
+	}
+
+	:lang(lo) h1,
+	:lang(lo) h2,
+	:lang(lo) h3 {
+		line-height: 1.5;
+	}
+
+	/* Lao has no italic tradition; synthesised obliques look broken. */
+	:lang(lo) em,
+	:lang(lo) i {
+		font-style: normal;
+		font-weight: 600;
+	}
+
+	/*
+	 * Tells the browser which way its own chrome should render — scrollbars,
+	 * date pickers, the native select popup, spin buttons. Without it a dark
+	 * page still gets a bright white scrollbar and a white calendar overlay.
+	 * mode-watcher sets `.dark` on <html> before first paint.
+	 */
+	html {
+		color-scheme: light;
+		scroll-behavior: smooth;
+	}
+
+	html.dark {
+		color-scheme: dark;
+	}
+
+	/*
+	 * `clip` rather than `hidden`: `overflow: hidden` on the root silently turns
+	 * the element into a scroll container, which breaks `position: sticky` on
+	 * the header and makes anchor jumps land in the wrong place. Applied to both
+	 * elements because either one alone can still let a wide child escape.
+	 */
+	html,
+	body {
+		overflow-x: clip;
+	}
+
+	/*
+	 * Long unbroken strings — a Lao compound, a slug, an email in an error
+	 * message — otherwise force a heading wider than the viewport and take the
+	 * whole page into a sideways scroll with them. `min-width: 0` lets a heading
+	 * inside a flex or grid track actually shrink to its container.
+	 */
+	h1,
+	h2,
+	h3 {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html {
+			scroll-behavior: auto;
+		}
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+		}
+	}
+
+	/* Visible keyboard focus everywhere, matching the theme's ring token. */
+	:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+
+	/*
+	 * The surfaces the browser draws for us. Selection, the caret, the scrollbar and
+	 * underline placement all ship with defaults that belong to no design system, and
+	 * leaving them is the difference between a page that was assembled and one that was
+	 * built. They cost four rules and they are visible on every screen.
+	 */
+	::selection {
+		background-color: color-mix(in oklch, var(--primary) 22%, transparent);
+		color: var(--foreground);
+	}
+
+	:where(input, textarea, [contenteditable]) {
+		caret-color: var(--primary);
+	}
+
+	html {
+		scrollbar-color: var(--border) transparent;
+	}
+
+	/*
+	 * Underlines sit clear of Lao descenders and the tone marks below the baseline, which
+	 * a default underline cuts straight through.
+	 */
+	a {
+		text-underline-offset: 0.2em;
+		text-decoration-thickness: from-font;
+	}
+
+	/* Figures in a column should line up; proportional digits make them ragged. */
+	time,
+	[data-slot='table'] td,
+	.tabular-nums {
+		font-variant-numeric: tabular-nums;
+	}
+}
+
+@utility skip-link {
+	position: absolute;
+	left: -9999px;
+	top: 0;
+	z-index: 100;
+
+	&:focus {
+		left: 1rem;
+		top: 1rem;
+	}
+}
+
+/*
+ * Backoffice status and role pickers stay native <select> elements rather than
+ * moving to the shadcn Select: they post without JavaScript, they get the
+ * platform's own picker on a phone, and the e2e suite drives them with
+ * selectOption(). This gives them the Input component's shape so they do not
+ * look like the one control nobody styled.
+ *
+ * `color-scheme` on <html> is what makes the dropdown itself render dark.
+ */
+@utility native-select {
+	height: --spacing(8);
+	width: 100%;
+	border-radius: var(--radius-lg);
+	border: 1px solid var(--input);
+	background-color: var(--background);
+    padding-inline: --spacing(2.5);
+	font-size: var(--text-sm);
+	outline: none;
+
+	&:focus-visible {
+		border-color: var(--ring);
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+	}
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.dark & {
+		background-color: color-mix(in oklch, var(--input) 30%, transparent);
+	}
+}
+
+/*
+ * The `hero-grid` utility was removed with this redesign. The landing page used to put a
+ * faint two-axis grid behind its text hero; the city model does that job now, and it does
+ * it with an actual surface rather than a gradient standing in for one. The sign-in screen,
+ * the only other user, takes a plain tinted ground instead.
+ */
+
+/*
+ * Cards, tiles and logo plates lift a little on hover. Declared once here so
+ * every surface in the app rises by the same amount at the same speed instead
+ * of each page inventing its own. Pointer-only: on touch there is no hover
+ * state to preview, and the transform just delays the tap.
+ */
+@utility lift {
+	transition:
+		transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+		box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+		border-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+
+	@media (hover: hover) {
+		&:hover {
+			transform: translateY(-2px);
+		}
+	}
+}

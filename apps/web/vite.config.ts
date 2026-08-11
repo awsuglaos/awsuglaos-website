@@ -1,0 +1,69 @@
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
+import adapter from '@sveltejs/adapter-node';
+import { enhancedImages } from '@sveltejs/enhanced-img';
+import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+	// The single .env lives at the repo root, shared with the database scripts.
+	envDir: '../..',
+	plugins: [
+		tailwindcss(),
+		/*
+		 * Must come before `sveltekit()`: it rewrites `<enhanced:img>` in the
+		 * markup, so it has to see the component before the Svelte compiler does.
+		 * The brand logos ship as ~1 MB 1254px PNGs; this emits AVIF/WebP at the
+		 * sizes actually used, with intrinsic width and height so they reserve
+		 * their space before decoding.
+		 */
+		enhancedImages(),
+		paraglideVitePlugin({
+			project: './project.inlang',
+			outdir: './src/lib/paraglide',
+			// `url` first so a shared link always pins its language; `cookie` then
+			// remembers a visitor's toggle across pages; `baseLocale` is the floor.
+			strategy: ['url', 'cookie', 'baseLocale'],
+			// Lao is the base locale and stays unprefixed at `/`; English lives
+			// under `/en`. Swap the two rows in each `localized` list to lead with
+			// English instead.
+			urlPatterns: [
+				{
+					// The root needs its own exact pattern: an optional path parameter
+					// matches `/` fine but cannot be *filled* when building the URL back
+					// up, which throws "Missing value for path".
+					pattern: '/',
+					localized: [
+						['en', '/en'],
+						['lo', '/']
+					]
+				},
+				{
+					// English first — matching is order-sensitive and the Lao pattern
+					// matches every path, including `/en/...`.
+					pattern: '/:path(.*)',
+					localized: [
+						['en', '/en/:path(.*)'],
+						['lo', '/:path(.*)']
+					]
+				}
+			]
+		}),
+		/*
+		 * All SvelteKit configuration lives here. Passing any option to this plugin
+		 * makes SvelteKit ignore svelte.config.js entirely, so splitting it across
+		 * both files silently drops half the settings.
+		 */
+		sveltekit({
+			adapter: adapter(),
+			// SvelteKit resolves its own .env directory independently of Vite's
+			// `envDir` above; both have to point at the repo root.
+			env: { dir: '../..' },
+			compilerOptions: {
+				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
+				runes: ({ filename }) =>
+					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
+			}
+		})
+	]
+});

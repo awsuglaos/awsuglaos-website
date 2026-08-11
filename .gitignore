@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.svelte-kit/
+.turbo/
+*.tsbuildinfo
+
+# SST / Pulumi
+.sst/
+sst-env.d.ts
+
+# env — never commit real credentials (see .env.example)
+.env
+.env.*
+!.env.example
+
+# test artifacts
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# local uploads (filesystem stub for S3 in dev)
+.uploads/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
