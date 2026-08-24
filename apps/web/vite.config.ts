@@ -14,6 +14,7 @@ import { defineConfig } from 'vite';
  * `vite preview`, which reads .svelte-kit/output and is adapter-agnostic.
  */
 import adapter from 'svelte-kit-sst';
+import paraglideConfig from './paraglide.config.js';
 
 export default defineConfig({
 	// The single .env lives at the repo root, shared with the database scripts.
@@ -28,37 +29,12 @@ export default defineConfig({
 		 * their space before decoding.
 		 */
 		enhancedImages(),
-		paraglideVitePlugin({
-			project: './project.inlang',
-			outdir: './src/lib/paraglide',
-			// `url` first so a shared link always pins its language; `cookie` then
-			// remembers a visitor's toggle across pages; `baseLocale` is the floor.
-			strategy: ['url', 'cookie', 'baseLocale'],
-			// Lao is the base locale and stays unprefixed at `/`; English lives
-			// under `/en`. Swap the two rows in each `localized` list to lead with
-			// English instead.
-			urlPatterns: [
-				{
-					// The root needs its own exact pattern: an optional path parameter
-					// matches `/` fine but cannot be *filled* when building the URL back
-					// up, which throws "Missing value for path".
-					pattern: '/',
-					localized: [
-						['en', '/en'],
-						['lo', '/']
-					]
-				},
-				{
-					// English first — matching is order-sensitive and the Lao pattern
-					// matches every path, including `/en/...`.
-					pattern: '/:path(.*)',
-					localized: [
-						['en', '/en/:path(.*)'],
-						['lo', '/:path(.*)']
-					]
-				}
-			]
-		}),
+		/*
+		 * Options live in ./paraglide.config.js because svelte-check needs the
+		 * generated $lib/paraglide/* modules too, and `pnpm check` never runs Vite.
+		 * scripts/compile-paraglide.mjs reads the same file.
+		 */
+		paraglideVitePlugin(paraglideConfig),
 		/*
 		 * All SvelteKit configuration lives here. Passing any option to this plugin
 		 * makes SvelteKit ignore svelte.config.js entirely, so splitting it across
