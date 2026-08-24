@@ -1,6 +1,14 @@
-import { env } from '$env/dynamic/private';
+import { env } from '$env/dynamic/public';
 import { DomainError, type DomainErrorCode } from '@awsug/shared';
 
+/*
+ * `$env/dynamic/public`, not `/private`. The private module deliberately
+ * excludes every variable named with the PUBLIC_ prefix, so reading
+ * PUBLIC_API_URL from it yields undefined — always, in every environment. The
+ * `?? 'http://localhost:3000'` fallback then hides it completely in
+ * development, where localhost happens to be the right answer, and the
+ * backoffice on Lambda would quietly try to reach the API on its own loopback.
+ */
 const BASE = () => (env.PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 
 interface ApiErrorBody {
@@ -40,7 +48,9 @@ export function api(token: string, fetchFn: typeof fetch = fetch) {
 			const detail = body.issues?.map((i) => `${i.path}: ${i.message}`).join('; ');
 			throw new DomainError(
 				(body.error as DomainErrorCode) ?? 'validation_failed',
-				detail ? `${body.message ?? 'Request failed'} (${detail})` : (body.message ?? 'Request failed'),
+				detail
+					? `${body.message ?? 'Request failed'} (${detail})`
+					: (body.message ?? 'Request failed'),
 				response.status
 			);
 		}

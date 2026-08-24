@@ -172,6 +172,9 @@ importers:
       svelte-check:
         specifier: ^4.7.5
         version: 4.7.5(picomatch@4.0.5)(svelte@5.56.8(@typescript-eslint/types@8.66.0))(typescript@6.0.3)
+      svelte-kit-sst:
+        specifier: 2.49.8
+        version: 2.49.8
       svelte-sonner:
         specifier: ^1.1.1
         version: 1.1.1(svelte@5.56.8(@typescript-eslint/types@8.66.0))
@@ -3445,6 +3448,9 @@ packages:
       svelte:
         optional: true
 
+  svelte-kit-sst@2.49.8:
+    resolution: {integrity: sha512-D4eu/HW/Is1mJI5JQ0+uK6jsG0WFox5D2DHs7SyzQ3tey4mwgJHNVrOrP65/JDjCDuGixoGw6oJDXArVE/MhBQ==}
+
   svelte-parse-markup@0.1.5:
     resolution: {integrity: sha512-T6mqZrySltPCDwfKXWQ6zehipVLk4GWfH1zCMGgRtLlOIFPuw58ZxVYxVvotMJgJaurKi1i14viB2GIRKXeJTQ==}
     peerDependencies:
@@ -6473,6 +6479,8 @@ snapshots:
       semver: 7.8.5
     optionalDependencies:
       svelte: 5.56.8(@typescript-eslint/types@8.66.0)
+
+  svelte-kit-sst@2.49.8: {}
 
   svelte-parse-markup@0.1.5(svelte@5.56.8(@typescript-eslint/types@8.66.0)):
     dependencies:

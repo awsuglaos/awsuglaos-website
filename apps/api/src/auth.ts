@@ -25,7 +25,16 @@ function getVerifier() {
 	verifier ??= CognitoJwtVerifier.create({
 		userPoolId: env.cognito.userPoolId,
 		clientId: env.cognito.clientId,
-		tokenUse: 'access'
+		/*
+		 * The ID token, not the access token. Identity here means an email
+		 * address, and `email` is a claim only the ID token carries. A Cognito
+		 * access token would offer `username`, which — because the pool is
+		 * configured with `usernames: ['email']` — is a generated UUID rather than
+		 * the address, so it would match no row in `users` and every request would
+		 * 403. The extraction below has always read `email` first; this is the
+		 * token type that actually supplies it.
+		 */
+		tokenUse: 'id'
 	});
 	return verifier;
 }
@@ -94,7 +103,9 @@ export const requireAuth: MiddlewareHandler<{ Variables: AuthVariables }> = asyn
 };
 
 /** Route guard. Admins can do everything an editor can. */
-export function requireRole(...allowed: UserRole[]): MiddlewareHandler<{ Variables: AuthVariables }> {
+export function requireRole(
+	...allowed: UserRole[]
+): MiddlewareHandler<{ Variables: AuthVariables }> {
 	return async (c, next) => {
 		const user = c.get('user');
 		if (!user) throw new UnauthorizedError();

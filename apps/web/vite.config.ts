@@ -1,9 +1,19 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
-import adapter from '@sveltejs/adapter-node';
 import { enhancedImages } from '@sveltejs/enhanced-img';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+/*
+ * sst.aws.SvelteKit reads its build from .svelte-kit/svelte-kit-sst/{server,
+ * client,prerendered} and expects a lambda-handler/index.handler entry — see
+ * .sst/platform/src/components/aws/svelte-kit.ts. adapter-node writes to
+ * build/ instead, so deploying with it fails at the Web component.
+ *
+ * Pinned to the `two` dist-tag: `latest` still points at 2.43.5, which is
+ * older than this. Playwright is unaffected — it serves the app with
+ * `vite preview`, which reads .svelte-kit/output and is adapter-agnostic.
+ */
+import adapter from 'svelte-kit-sst';
 
 export default defineConfig({
 	// The single .env lives at the repo root, shared with the database scripts.

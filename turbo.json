@@ -11,7 +11,15 @@
     "DB_SECRET_ARN",
     "DB_NAME",
     "PUBLIC_SITE_URL",
-    "PUBLIC_API_URL"
+    "PUBLIC_API_URL",
+    "COGNITO_USER_POOL_ID",
+    "COGNITO_CLIENT_ID",
+    "COGNITO_DOMAIN_URL",
+    "SES_FROM_ADDRESS",
+    "SES_CONFIGURATION_SET",
+    "UPLOADS_BUCKET",
+    "UPLOADS_PUBLIC_URL",
+    "ALLOW_INDEXING"
   ],
   "tasks": {
     "build": {

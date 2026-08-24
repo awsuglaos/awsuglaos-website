@@ -1,4 +1,5 @@
 import { env } from '$env/dynamic/private';
+import { env as publicEnv } from '$env/dynamic/public';
 import {
 	ConsoleEmailDispatcher,
 	LocalObjectStore,
@@ -58,7 +59,10 @@ export function getContext(): Promise<AppContext> {
 	cached ??= (async () => ({
 		db: await createDatabase(resolveDbConfig(env)),
 		email: createEmailDispatcher(),
-		siteUrl: env.PUBLIC_SITE_URL ?? 'http://localhost:5173'
+		// From the *public* module: the private one filters out the PUBLIC_ prefix
+		// entirely, so this read would always be undefined and every ticket,
+		// feedback and unsubscribe link in outgoing email would point at localhost.
+		siteUrl: publicEnv.PUBLIC_SITE_URL ?? 'http://localhost:5173'
 	}))();
 	return cached;
 }

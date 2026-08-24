@@ -56,7 +56,7 @@ export const idSchema = z.uuid();
  *
  * Uploads are stored relative on purpose. An absolute URL would bake the
  * current origin into every row, so moving from a preview host to
- * awsuglaos.la would leave every stored image pointing at the old domain —
+ * awsug.la would leave every stored image pointing at the old domain —
  * and it would mean the API had to know the browser's origin in order to sign
  * an upload, which it does not.
  *

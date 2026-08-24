@@ -56,7 +56,7 @@ export async function makeContext(
 	return {
 		db: await getTestDb(),
 		email,
-		siteUrl: 'https://awsuglaos.la',
+		siteUrl: 'https://awsug.la',
 		...overrides,
 		email: (overrides.email as MemoryEmailDispatcher) ?? email
 	};

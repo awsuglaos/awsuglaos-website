@@ -32,10 +32,15 @@
 			<p class="text-muted-foreground mt-1 text-sm">Sign in to manage events and news.</p>
 		</div>
 
-		{#if form?.message}
+		<!--
+			Two sources, one banner: `form.message` for a failed submission here, and
+			`data.error` for a failure that happened over in /admin/callback, which
+			has no UI of its own and reports back through the query string.
+		-->
+		{#if form?.message || data.error}
 			<Alert variant="destructive" class="mt-6">
 				<AlertCircle class="size-4" />
-				<AlertDescription>{form.message}</AlertDescription>
+				<AlertDescription>{form?.message ?? data.error}</AlertDescription>
 			</Alert>
 		{/if}
 
@@ -60,9 +65,27 @@
 
 						<Button type="submit" class="mt-6 w-full">Sign in</Button>
 					</form>
+				{:else if data.cognitoReady}
+					<!--
+						A form, not a link. The action mints a single-use state and PKCE
+						verifier pair; an anchor is a prefetch target, so SvelteKit's link
+						preloading would mint one pair on hover and a second on click, and
+						the callback would reject the mismatch every time.
+					-->
+					<form method="POST" action="?/cognito">
+						<Button type="submit" class="w-full">Continue with Cognito</Button>
+					</form>
+					<p class="text-muted-foreground mt-4 text-center text-xs">
+						You will be asked for your password and your authenticator code.
+					</p>
 				{:else}
-					<!-- Wired up in M8, once the Cognito user pool exists. -->
-					<Button href="/admin/login/cognito" class="w-full">Continue with Cognito</Button>
+					<Alert variant="destructive">
+						<AlertCircle class="size-4" />
+						<AlertDescription>
+							Sign-in is not configured for this environment. Neither the Cognito user pool nor
+							local development mode is available.
+						</AlertDescription>
+					</Alert>
 				{/if}
 			</Card.Content>
 		</Card.Root>
@@ -71,8 +94,8 @@
 			<Alert class="mt-4">
 				<AlertDescription class="text-xs">
 					<strong>Local development mode.</strong> Any email that exists in the
-					<code class="bg-muted rounded px-1 py-0.5 font-mono">users</code> table signs in without
-					a password. Production replaces this with the Cognito Hosted UI and enforced MFA.
+					<code class="bg-muted rounded px-1 py-0.5 font-mono">users</code> table signs in without a password.
+					Production replaces this with the Cognito Hosted UI and enforced MFA.
 				</AlertDescription>
 			</Alert>
 		{/if}

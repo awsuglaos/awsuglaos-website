@@ -128,9 +128,37 @@ jobs:
           pnpm sst deploy --stage "$STAGE"
 
       - name: Apply database migrations
+        # `sst shell` re-evaluates sst.config.ts to work out what to inject, and
+        # the config branches on SITE_DOMAIN. Without the same env block as the
+        # deploy step it resolves a *different* shape of the app and hands the
+        # migration the wrong resource names.
+        env:
+          SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+          SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
         run: |
           STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
           # `sst shell` injects the linked resource environment (cluster ARN,
           # secret ARN, database name), so drizzle-kit talks to Aurora over the
           # Data API with no credentials written to disk.
           pnpm sst shell --stage "$STAGE" -- pnpm db:migrate
+
+      - name: Smoke test
+        # A deploy that reports success can still serve a 500 — a missing
+        # environment variable only fails on the first render, long after
+        # CloudFront says it is ready. Fail the run here rather than finding out
+        # from a visitor.
+        env:
+          SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+          SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
+        run: |
+          STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+          URL=$(pnpm sst outputs --stage "$STAGE" | awk '/^web/ { print $NF }')
+          echo "Site: $URL"
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$URL" || true)
+            [ "$STATUS" = "200" ] && echo "OK" && exit 0
+            echo "attempt $i: HTTP $STATUS"
+            sleep 15
+          done
+          echo "Site did not return 200 after the deploy" >&2
+          exit 1

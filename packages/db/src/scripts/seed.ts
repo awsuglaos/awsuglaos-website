@@ -96,7 +96,7 @@ if (!admin) throw new Error('Failed to seed the admin user');
 await db
 	.insert(users)
 	.values({
-		email: 'editor@awsuglaos.la',
+		email: 'editor@awsug.la',
 		name: 'Community Editor',
 		avatarUrl: 'https://placehold.co/200x200/0f766e/ffffff?text=CE',
 		role: 'editor'

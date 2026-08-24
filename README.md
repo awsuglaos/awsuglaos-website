@@ -4,25 +4,25 @@ Public site (landing, news, events, registration) and backoffice for AWS User
 Group Lao, built to double as a reference architecture the group can present at
 meetups.
 
-**Status:** Phase 1 is built and verified locally. It has **not been deployed** —
-no AWS account existed when it was written. See [Deploying](#deploying).
+**Status:** Phase 1 is built and verified locally, and the infrastructure is
+ready to deploy. See [DEPLOYMENT.md](DEPLOYMENT.md) for the runbook.
 
 ---
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Frontend | SvelteKit 2 (Svelte 5, runes) + Tailwind v4 + shadcn-svelte |
-| Rich text | TipTap 3 — stored as JSONB, rendered and sanitised server-side |
-| i18n | Paraglide JS 2 — Lao (base, unprefixed) and English (`/en/*`) |
-| API | Hono on Lambda behind API Gateway HTTP API |
-| Domain logic | `packages/core`, shared by both entry points |
-| Database | Postgres — Aurora Serverless v2 via the RDS Data API on AWS |
-| ORM | Drizzle |
-| Validation | Zod 4, shared between client and server |
-| IaC | SST v4 (Pulumi/Terraform — **not** CDK) |
-| Monorepo | Turborepo + pnpm workspaces |
+| Layer        | Choice                                                         |
+| ------------ | -------------------------------------------------------------- |
+| Frontend     | SvelteKit 2 (Svelte 5, runes) + Tailwind v4 + shadcn-svelte    |
+| Rich text    | TipTap 3 — stored as JSONB, rendered and sanitised server-side |
+| i18n         | Paraglide JS 2 — Lao (base, unprefixed) and English (`/en/*`)  |
+| API          | Hono on Lambda behind API Gateway HTTP API                     |
+| Domain logic | `packages/core`, shared by both entry points                   |
+| Database     | Postgres — Aurora Serverless v2 via the RDS Data API on AWS    |
+| ORM          | Drizzle                                                        |
+| Validation   | Zod 4, shared between client and server                        |
+| IaC          | SST v4 (Pulumi/Terraform — **not** CDK)                        |
+| Monorepo     | Turborepo + pnpm workspaces                                    |
 
 ### Features
 
@@ -157,7 +157,7 @@ Storing HTML would mean trusting whatever an editor's browser produced and
 re-parsing it on every read; JSON keeps the structure addressable and makes
 sanitisation a property of the renderer. `packages/core/src/content/render.ts`
 is the only place content becomes markup, and it always sanitises. Note that
-ProseMirror *throws* on a node type outside the schema rather than dropping it,
+ProseMirror _throws_ on a node type outside the schema rather than dropping it,
 so the render is wrapped and degrades to plain text — a stale document must not
 take a page down.
 
@@ -181,7 +181,7 @@ be pasted in.
 
 **Image URLs are stored site-relative.** An upload yields
 `/uploads/2026/08/<ulid>.png`, not an absolute URL. Absolute would bake the
-current origin into every row, so moving from a preview host to `awsuglaos.la`
+current origin into every row, so moving from a preview host to `awsug.la`
 would strand every stored image — and it would force the API to know the
 browser's origin in order to sign an upload, which it does not. Two consequences
 worth knowing: `imageUrlSchema` accepts both shapes (and rejects
@@ -204,14 +204,14 @@ tradition and obliqued Lao looks broken.
 
 ## Corrections to the requirements document (v1.0)
 
-| Doc says | Reality |
-|---|---|
-| "SST v3 (built on AWS CDK)" | SST v3+ replaced CDK/CloudFormation with **Pulumi + Terraform**. Only v2 was CDK-based. This repo uses **v4**. |
-| "Aurora v2 doesn't scale to zero — set 0.5 ACU" | Scale-to-zero shipped Nov 2024. 0.5 ACU ≈ $43/mo; 0 ACU ≈ storage only. Costs a ~15s resume and rules out RDS Proxy. |
-| "Route 53 manages the `awsuglaos.la` domain" | `.la` is **not registrable** through Route 53. Register at a `.la` registrar and delegate NS to a Route 53 hosted zone. |
-| `users(password_hash)` alongside Cognito | Two auth systems. Dropped; the table stores `cognito_sub`. |
-| VPC placement unspecified | Decided explicitly — see above. |
-| `registrations.qr_code_url` in S3 | Replaced with `ticket_code`. |
+| Doc says                                        | Reality                                                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| "SST v3 (built on AWS CDK)"                     | SST v3+ replaced CDK/CloudFormation with **Pulumi + Terraform**. Only v2 was CDK-based. This repo uses **v4**.          |
+| "Aurora v2 doesn't scale to zero — set 0.5 ACU" | Scale-to-zero shipped Nov 2024. 0.5 ACU ≈ $43/mo; 0 ACU ≈ storage only. Costs a ~15s resume and rules out RDS Proxy.    |
+| "Route 53 manages the `awsug.la` domain"        | `.la` is **not registrable** through Route 53. Register at a `.la` registrar and delegate NS to a Route 53 hosted zone. |
+| `users(password_hash)` alongside Cognito        | Two auth systems. Dropped; the table stores `cognito_sub`.                                                              |
+| VPC placement unspecified                       | Decided explicitly — see above.                                                                                         |
+| `registrations.qr_code_url` in S3               | Replaced with `ticket_code`.                                                                                            |
 
 ### Cost expectation
 
@@ -225,33 +225,58 @@ free-tier). Verify current pricing before quoting these publicly.
 
 ## Deploying
 
-**Not yet done.** Prerequisites, in order of lead time:
+**See [DEPLOYMENT.md](DEPLOYMENT.md)** — a step-by-step runbook to a running
+site, including the answer to "why not Amplify?".
 
-1. **Register `awsuglaos.la`** at a `.la` registrar (Route 53 cannot), create a
-   Route 53 hosted zone, point the registrar's NS records at it.
-2. **Request SES production access** — new accounts are sandboxed and can only
-   email verified addresses. Approval takes 24–48h. Verify the domain, enable
-   DKIM.
-3. AWS account, IAM Identity Center, billing alarm.
-4. **Install the AWS CLI** (not currently present on the dev machine).
-5. GitHub OIDC → IAM deploy role; set `AWS_DEPLOY_ROLE_ARN` (secret) and
-   `SITE_DOMAIN` / `SES_FROM_ADDRESS` (variables) on the repo.
-
-Then:
+Deployment is driven entirely from GitHub Actions: every push to `main` deploys
+`staging`, every `v*` tag deploys `production`. No AWS CLI on the developer
+machine, and no long-lived access keys anywhere — the workflow assumes an IAM
+role over GitHub OIDC.
 
 ```bash
-pnpm sst deploy --stage staging
-pnpm sst shell --stage staging -- pnpm db:migrate
+git push origin main                        # → staging.awsug.la
+git tag v1.0.0 && git push origin v1.0.0    # → awsug.la
 ```
 
-> **Open question before the first deploy.** `sst.aws.SvelteKit` expects the
-> `svelte-kit-sst` adapter in place of `adapter-node`. That package was last
-> published in the SST v2 era and has not tracked SvelteKit 2.70 / Svelte 5 /
-> Vite 8, so it may not build. If it fails, the fallback is a container deploy
-> (`sst.aws.Cluster` + `sst.aws.Service`), which reuses the `adapter-node` build
-> this repo already produces — at the cost of an always-on Fargate task (~$10+/
-> month), which undercuts the free-tier goal. This is the one part of
-> `sst.config.ts` that could not be verified without an AWS account.
+Migrations run automatically after each deploy, over the RDS Data API.
+
+**One repository variable, `SITE_DOMAIN=awsug.la`, covers both stages.**
+`sst.config.ts` derives the host from the stage — production takes the apex,
+every other stage takes `<stage>.awsug.la`. Setting it per-environment would
+make the two stages contend for the apex certificate.
+
+**SES production access is the remaining blocker for a real event.** Sandboxed,
+an attendee who registers gets no confirmation and no ticket. Approval takes
+24–48h.
+
+> **Adapter — resolved 2026-08-11.** `sst.aws.SvelteKit` reads its build from
+> `.svelte-kit/svelte-kit-sst/{server,client,prerendered}` and invokes
+> `lambda-handler/index.handler`; `adapter-node` writes to `build/` instead, so
+> deploying with it would have failed at the `Web` component. `apps/web` now
+> uses `svelte-kit-sst`, **pinned to 2.49.8** — npm's `latest` tag still points
+> at the older 2.43.5, so do not unpin it.
+>
+> This note previously called that package abandoned. It is not: 2.49.8 was
+> published 2026-03-23 and builds cleanly against SvelteKit 2.70 / Svelte 5 /
+> Vite 8. `pnpm check` passes and `vite preview` still serves the production
+> build, so the Playwright suite is unaffected. The container fallback
+> (`sst.aws.Cluster` + `sst.aws.Service`, ~$10+/month for an always-on Fargate
+> task) is not needed.
+
+### Six defects found while writing that runbook
+
+Each would have survived a "successful" deploy and surfaced only as a broken
+site. All four are fixed; they are recorded here because they are the kind of
+thing that gets reintroduced.
+
+|                                                                                                                                                                                                                                  |                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The backoffice had no way to sign in.** The login page only ever had the `DEV_AUTH` shim, which refuses to run when `DEV_AUTH` is false — as it is on every deployed stage.                                                    | Added the Cognito Hosted UI authorization-code flow: a pool domain, `/admin/callback`, PKCE and state, and a logout that ends the Cognito session too.                 |
+| **Nothing served `/uploads/*`.** `sst.aws.SvelteKit` creates only its own origins, so every published image would have 404'd.                                                                                                    | An `sst.aws.Router` now fronts both the app and the bucket, so they share one origin — which is what makes site-relative image URLs work.                              |
+| **The API verified the wrong token type.** It asked for an access token but read `email`, a claim only the ID token carries. Every authenticated request would have 403'd.                                                       | `tokenUse: 'id'`.                                                                                                                                                      |
+| **`PUBLIC_API_URL` and `PUBLIC_SITE_URL` were always `undefined`.** They were read from `$env/dynamic/private`, which deliberately excludes the `PUBLIC_` prefix. The `?? localhost` fallbacks hid it completely in development. | Read from `$env/dynamic/public`. The backoffice would otherwise have called `localhost:3000` from Lambda, and every email link would have pointed at `localhost:5173`. |
+| **Both stages would have claimed the same domain.** `SITE_DOMAIN` had no stage component, and CI passes one variable to both stages — so a push to `main` could take the apex away from production.                              | The host is derived per stage in `sst.config.ts`.                                                                                                                      |
+| **Staging would have been indexed by Google.** `static/robots.txt` shipped `Allow: /` to every stage, with production's sitemap URL hardcoded. Harmless only while staging had no public hostname.                               | A per-stage `robots.txt` route plus `X-Robots-Tag: noindex` on non-production, both gated on `ALLOW_INDEXING`.                                                         |
 
 ---
 
@@ -280,4 +305,5 @@ least-privilege role via SST resource linking.
 - **Uploaded images are never cleaned up.** Removing an image from an article
   leaves the object in the bucket. Harmless at this volume; worth a lifecycle
   rule or a sweep before it is not.
+
 # awsuglaos-website

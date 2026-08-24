@@ -8,9 +8,9 @@
  * Terraform, and v4 continues that. There are no CDK constructs anywhere below;
  * each `sst.aws.*` component maps to Pulumi/Terraform resources.
  *
- * THIS FILE HAS NOT BEEN DEPLOYED. No AWS account existed when it was written,
- * so it is reviewed-but-unverified. See the M7 prerequisites in the README
- * before the first `sst deploy`.
+ * Deployment is driven from .github/workflows/ci.yml — see DEPLOYMENT.md for the
+ * runbook, including the prerequisites that cannot be expressed here (the OIDC
+ * deploy role, SES identities, and the first admin).
  */
 export default $config({
 	app(input) {
@@ -75,6 +75,75 @@ export default $config({
 		});
 
 		/* ------------------------------------------------------------------ */
+		/* Edge                                                               */
+		/* ------------------------------------------------------------------ */
+
+		/*
+		 * SITE_DOMAIN is the *root* domain — `awsug.la`, never
+		 * `staging.awsug.la`. The stage decides the host it actually claims.
+		 *
+		 * This has to be derived rather than used raw. One repository variable
+		 * feeds every stage, so a stage-independent host means staging and
+		 * production both try to claim the apex, its ACM certificate and its
+		 * Route 53 alias record — and whichever deploys second wins. A routine
+		 * push to `main` would quietly take the domain away from production.
+		 *
+		 * Every other stage gets `<stage>.awsug.la`, so short-lived stages
+		 * are addressable without touching this file.
+		 *
+		 * `.la` cannot be registered through Route 53 — the domain is registered
+		 * at a .la registrar with its NS records delegated to the hosted zone.
+		 * ACM certificates for CloudFront must live in us-east-1; SST handles
+		 * that placement itself.
+		 */
+		const rootDomain = process.env.SITE_DOMAIN;
+		const siteDomain = rootDomain
+			? isProd
+				? rootDomain
+				: `${$app.stage}.${rootDomain}`
+			: undefined;
+
+		/*
+		 * One CloudFront distribution fronts both the SvelteKit app and the uploads
+		 * bucket, because they have to share an origin.
+		 *
+		 * `sst.aws.SvelteKit` on its own creates a distribution that knows only
+		 * about the app, and nothing would answer /uploads/*. That matters here:
+		 * image URLs are stored site-relative (`/uploads/2026/08/<ulid>.png`, see
+		 * packages/core/src/storage/types.ts), precisely so that a domain change
+		 * does not strand every image ever published — which only works if the
+		 * site's own origin serves them.
+		 *
+		 * The Router is created empty and routed below, after the bucket exists.
+		 * Constructing it first is what lets the bucket's CORS rule reference
+		 * `router.url` without the two components forming a cycle.
+		 */
+		const router = new sst.aws.Router('Router', {
+			// Still opt-in: with SITE_DOMAIN unset the stage runs on its generated
+			// CloudFront URL, which is what makes a throwaway stage cost nothing to
+			// set up.
+			...(siteDomain
+				? {
+						domain: {
+							name: siteDomain,
+							// Only production answers on www. A staging subdomain has no
+							// www. form worth owning.
+							redirects: isProd ? [`www.${rootDomain}`] : []
+						}
+					}
+				: {})
+		});
+
+		/*
+		 * The site's own origin, and the single source of truth for it. Every
+		 * consumer below derives from this rather than re-deriving from
+		 * SITE_DOMAIN, so the domain-less and custom-domain cases cannot drift:
+		 * the Cognito callback URL, the bucket's CORS origin and the links in
+		 * outgoing email all move together.
+		 */
+		const siteUrl = siteDomain ? $interpolate`https://${siteDomain}` : router.url;
+
+		/* ------------------------------------------------------------------ */
 		/* Storage                                                            */
 		/* ------------------------------------------------------------------ */
 
@@ -89,13 +158,29 @@ export default $config({
 			access: 'cloudfront',
 			cors: {
 				allowMethods: ['PUT'],
-				allowOrigins: process.env.SITE_DOMAIN
-					? [`https://${process.env.SITE_DOMAIN}`]
-					: ['http://localhost:5173'],
+				/*
+				 * The browser PUTs to the S3 host directly, so S3 — not CloudFront —
+				 * answers the preflight. This has to be the deployed origin: hardcoding
+				 * localhost here (as this did) makes every upload from the real site
+				 * fail CORS, and the failure surfaces in the browser console rather
+				 * than in any server log.
+				 */
+				allowOrigins: [siteUrl],
 				allowHeaders: ['content-type'],
 				maxAge: '1 hour'
 			}
 		});
+
+		/*
+		 * Serves /uploads/* from the bucket. The path prefix is deliberately not
+		 * rewritten: `buildObjectKey` already writes keys as
+		 * `uploads/YYYY/MM/<ulid>.<ext>`, so the request path and the object key
+		 * line up as-is.
+		 *
+		 * The SvelteKit app's `/*` is a default route, so it loses to this more
+		 * specific pattern no matter which is declared first.
+		 */
+		router.routeBucket('/uploads', uploads);
 
 		/* ------------------------------------------------------------------ */
 		/* Authentication                                                     */
@@ -103,6 +188,16 @@ export default $config({
 
 		const userPool = new sst.aws.CognitoUserPool('UserPool', {
 			usernames: ['email'],
+			/*
+			 * The hosted UI. Without it there is no sign-in page at all — the
+			 * backoffice has no password form of its own, and deliberately so: it
+			 * never sees a credential, only the resulting token.
+			 *
+			 * A prefix domain has to be unique across the whole region, not just the
+			 * account. If a deploy fails with "Domain already associated with another
+			 * user pool", change the prefix here rather than fighting it.
+			 */
+			domain: { prefix: `awsug-lao-${$app.stage}` },
 			transform: {
 				userPool: {
 					// Doc §8: MFA is required for admin accounts, not merely offered.
@@ -122,7 +217,48 @@ export default $config({
 			}
 		});
 
-		const userPoolClient = userPool.addClient('Web');
+		const userPoolClient = userPool.addClient('Web', {
+			callbackUrls: [$interpolate`${siteUrl}/admin/callback`],
+			transform: {
+				client: {
+					logoutUrls: [$interpolate`${siteUrl}/admin/login`],
+					/*
+					 * SST defaults to ["implicit", "code"]. Implicit returns tokens in
+					 * the URL fragment, where they land in browser history and any
+					 * Referer header — and this app has no use for it, because the code
+					 * exchange happens server-side in the SvelteKit handler. Dropping it
+					 * removes the option of ever accidentally using it.
+					 */
+					allowedOauthFlows: ['code'],
+					// Narrower than SST's default, which also requests `phone` and
+					// `aws.cognito.signin.user.admin`. The app reads `email` off the ID
+					// token and nothing else.
+					allowedOauthScopes: ['openid', 'email', 'profile'],
+					/*
+					 * Eight hours, matching the session cookie in
+					 * apps/web/src/lib/server/session.ts. There is no refresh-token
+					 * plumbing: when the token expires the API 401s, the (protected)
+					 * layout clears the cookie and bounces to /admin/login, and the
+					 * hosted UI's own session usually makes that round trip invisible.
+					 *
+					 * All three validities are set explicitly. Setting
+					 * tokenValidityUnits while leaving a validity unset leaves that one
+					 * on its own default unit and produces a permanent diff.
+					 */
+					idTokenValidity: 8,
+					accessTokenValidity: 8,
+					refreshTokenValidity: 30,
+					tokenValidityUnits: {
+						idToken: 'hours',
+						accessToken: 'hours',
+						refreshToken: 'days'
+					},
+					// Do not leak whether an address has an account.
+					preventUserExistenceErrors: 'ENABLED',
+					enableTokenRevocation: true
+				}
+			}
+		});
 
 		/* ------------------------------------------------------------------ */
 		/* API                                                                */
@@ -141,10 +277,10 @@ export default $config({
 			}
 		});
 
-		const siteOrigin = process.env.SITE_DOMAIN ? `https://${process.env.SITE_DOMAIN}` : '';
-
 		const apiEnvironment = {
-			PUBLIC_SITE_URL: siteOrigin,
+			// Ticket, feedback and unsubscribe links in outgoing email are built from
+			// this. Empty or wrong and every email ships a dead link.
+			PUBLIC_SITE_URL: siteUrl,
 			COGNITO_USER_POOL_ID: userPool.id,
 			COGNITO_CLIENT_ID: userPoolClient.id,
 			DB_CLUSTER_ARN: database.clusterArn,
@@ -195,51 +331,65 @@ export default $config({
 		/* ------------------------------------------------------------------ */
 
 		/*
-		 * ADAPTER WARNING — verify before the first deploy.
+		 * ADAPTER — resolved 2026-08-11.
 		 *
-		 * sst.aws.SvelteKit expects the `svelte-kit-sst` adapter in place of
-		 * adapter-node. That package was last published during the SST v2 era and
-		 * has not tracked SvelteKit 2.70 / Svelte 5 / Vite 8, so it may not build.
+		 * sst.aws.SvelteKit reads its build from .svelte-kit/svelte-kit-sst/
+		 * {server,client,prerendered} and invokes lambda-handler/index.handler.
+		 * apps/web now uses the `svelte-kit-sst` adapter, pinned to 2.49.8 via the
+		 * `two` dist-tag — note npm's `latest` tag still points at the older
+		 * 2.43.5, so an unpinned install silently regresses.
 		 *
-		 * If it fails, the fallback is a container deploy (sst.aws.Cluster +
-		 * sst.aws.Service) which keeps the adapter-node build this repo already
-		 * produces — at the cost of an always-on Fargate task (~$10+/month), which
-		 * undercuts the free-tier goal. Resolve this before committing to a
-		 * hosting shape; it is the one piece of this file that could not be
-		 * verified without an AWS account.
+		 * An earlier note here called that package abandoned. It is not: 2.49.8
+		 * was published 2026-03-23. It builds cleanly against SvelteKit 2.70 /
+		 * Svelte 5 / Vite 8, produces all four paths this component reads, and
+		 * `pnpm check` passes.
+		 *
+		 * The container fallback (sst.aws.Cluster + sst.aws.Service over the
+		 * adapter-node build) is therefore not needed, which is what keeps this
+		 * off an always-on Fargate task at ~$10+/month.
 		 */
 		const web = new sst.aws.SvelteKit('Web', {
 			path: 'apps/web',
+			// Serves through the shared distribution rather than one of its own, so
+			// that /uploads/* above is same-origin with the app.
+			router: { instance: router },
 			link: [database, uploads],
 			environment: {
 				PUBLIC_API_URL: api.url,
+				PUBLIC_SITE_URL: siteUrl,
 				COGNITO_USER_POOL_ID: userPool.id,
 				COGNITO_CLIENT_ID: userPoolClient.id,
+				// The hosted UI origin. apps/web/src/lib/server/cognito.ts builds the
+				// /oauth2/authorize, /oauth2/token and /logout URLs from it.
+				COGNITO_DOMAIN_URL: userPool.domainUrl!,
 				DB_CLUSTER_ARN: database.clusterArn,
 				DB_SECRET_ARN: database.secretArn,
 				DB_NAME: database.database,
 				SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
+				/*
+				 * Switches the app off its local filesystem upload stub. Without it
+				 * `usingLocalUploads()` stays true on Lambda, where the filesystem is
+				 * read-only — uploads would fail and /uploads/* would 404 from the
+				 * function instead of being served from the bucket.
+				 */
+				UPLOADS_BUCKET: uploads.name,
+				/*
+				 * Production is the only stage search engines may index. Every other
+				 * stage now has a real, publicly resolving hostname
+				 * (`staging.awsug.la`), which is exactly what makes it crawlable —
+				 * and staging is a byte-for-byte copy of production, so indexing it
+				 * means competing with the real site on its own content.
+				 *
+				 * Deliberately not PUBLIC_-prefixed: only the server reads it, and
+				 * `$env/dynamic/private` excludes that prefix entirely. Anything unset
+				 * is treated as not indexable, so a misconfigured stage fails into
+				 * obscurity rather than into Google.
+				 */
+				ALLOW_INDEXING: isProd ? 'true' : 'false',
 				// Must never be "true" outside a developer machine; apps/api/src/env.ts
 				// also refuses the combination at runtime.
 				DEV_AUTH: 'false'
-			},
-			/*
-			 * The domain is opt-in so a first deploy is not blocked on DNS. Set
-			 * SITE_DOMAIN once the Route 53 hosted zone exists.
-			 *
-			 * `.la` cannot be registered through Route 53 — register awsuglaos.la at
-			 * a .la registrar, then delegate its NS records to the hosted zone. ACM
-			 * certificates for CloudFront must live in us-east-1; SST handles that
-			 * placement itself.
-			 */
-			...(process.env.SITE_DOMAIN
-				? {
-						domain: {
-							name: process.env.SITE_DOMAIN,
-							redirects: isProd ? [`www.${process.env.SITE_DOMAIN}`] : []
-						}
-					}
-				: {})
+			}
 		});
 
 		return {
@@ -247,6 +397,7 @@ export default $config({
 			api: api.url,
 			userPool: userPool.id,
 			userPoolClient: userPoolClient.id,
+			cognitoDomain: userPool.domainUrl!,
 			databaseCluster: database.clusterArn
 		};
 	}

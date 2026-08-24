@@ -2,7 +2,7 @@ import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
 import type { EmailDispatcher, EmailMessage } from './types.js';
 
 export interface SesConfig {
-	/** Verified sender, e.g. "AWS User Group Lao <hello@awsuglaos.la>". */
+	/** Verified sender, e.g. "AWS User Group Lao <hello@awsug.la>". */
 	from: string;
 	/** Optional configuration set for open/bounce tracking. */
 	configurationSetName?: string;
