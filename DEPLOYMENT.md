@@ -154,6 +154,12 @@ that follows.
 > If it says the provider already exists, someone has done this before — that is
 > fine, an account only ever needs one. Skip to 2.2.
 
+> **Do not copy this provider's ARN.** It ends in
+> `:oidc-provider/token.actions.githubusercontent.com` and is not what the
+> workflow needs. The ARN you want belongs to the _role_ you create in 2.2 and
+> ends in `:role/…`. Mixing them up is the single most common way this phase
+> goes wrong.
+
 ### 2.2 Create the role
 
 1. **IAM** → **Roles** → **Create role** → **Web identity**.
@@ -189,8 +195,14 @@ that follows.
 }
 ```
 
-6. Copy the role ARN from the top of the page. It looks like
-   `arn:aws:iam::123456789012:role/github-actions-awsug-lao-deploy`.
+6. Copy the **role** ARN from the summary at the top of the role's page. It
+   looks like `arn:aws:iam::123456789012:role/github-actions-awsug-lao-deploy` —
+   twelve digits for the account, then `:role/`. If what you copied contains
+   `oidc-provider`, it is the identity provider from 2.1, not the role.
+
+Paste it as a single line with no trailing newline. The workflow checks the
+shape of this value before it tries to use it, so a mistake here fails in
+seconds with a specific message rather than after a two-minute retry loop.
 
 ### Why `AdministratorAccess`
 
@@ -705,6 +717,17 @@ image ever published.
 ## Troubleshooting
 
 Keyed to the message you will actually see.
+
+**`Could not assume role with OIDC: Request ARN is invalid`**
+STS rejected the ARN as malformed — this is about the string, not about
+permissions, so the trust policy is not the problem. The workflow's "Check the
+deploy role ARN" step names the specific fault. The usual causes, in order:
+the OIDC **provider** ARN was pasted instead of the **role** ARN (see 2.1); a
+trailing newline came along with the paste; the account id is not twelve
+digits; or the value is a bare role name rather than a full ARN.
+
+Note that the secret shows in the log as `***` whether it is right or wrong —
+masking only means it is non-empty, never that it is correct.
 
 **`Not authorized to perform sts:AssumeRoleWithWebIdentity`**
 The trust policy `sub` does not match the run. Check for a typo in the

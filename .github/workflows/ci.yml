@@ -114,6 +114,51 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Check the deploy role ARN
+        # A malformed ARN makes configure-aws-credentials retry for two minutes
+        # and then say only "Request ARN is invalid", which does not say why.
+        # Fail here instead, naming the actual problem.
+        #
+        # The value is never printed. GitHub would mask it anyway, but the
+        # checks below deliberately report only facts *derived* from it.
+        env:
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          ENV_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+        run: |
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN is empty. Set it as a secret on the '$ENV_NAME' environment (Settings -> Environments -> $ENV_NAME), or at repository level."
+            exit 1
+          fi
+
+          # A trailing newline survives a copy-paste into the secret box and is
+          # invisible everywhere until STS rejects it.
+          if [ "$(printf '%s' "$ROLE_ARN" | tr -d '[:space:]' | wc -c)" -ne "$(printf '%s' "$ROLE_ARN" | wc -c)" ]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN contains whitespace, most likely a trailing newline from pasting. Re-enter it as a single line with no trailing break."
+            exit 1
+          fi
+
+          case "$ROLE_ARN" in
+            arn:*) ;;
+            *)
+              echo "::error::AWS_DEPLOY_ROLE_ARN does not start with 'arn:'. It looks like a bare role name. Use the full ARN: arn:aws:iam::<account-id>:role/<role-name>."
+              exit 1
+              ;;
+          esac
+
+          # ARN fields are colon-separated: arn:partition:service:region:account:resource
+          RESOURCE_TYPE=$(printf '%s' "$ROLE_ARN" | cut -d: -f6 | cut -d/ -f1)
+          if [ "$RESOURCE_TYPE" != "role" ]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN points at a '$RESOURCE_TYPE', not a role. The most common mix-up is the OIDC identity provider ARN (arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com). You need the IAM *role* ARN instead: IAM -> Roles -> your deploy role -> copy the ARN at the top."
+            exit 1
+          fi
+
+          if ! printf '%s' "$ROLE_ARN" | grep -qE '^arn:aws:iam::[0-9]{12}:role/.+$'; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN is not a well-formed IAM role ARN. Expected arn:aws:iam::<12-digit account id>:role/<role-name> - check the account id is exactly 12 digits and nothing was truncated."
+            exit 1
+          fi
+
+          echo "Deploy role ARN is well-formed."
+
       - uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
