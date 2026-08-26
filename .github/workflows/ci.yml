@@ -11,18 +11,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  # Matches docker-compose.yml, but on port 5432 — a CI runner has no competing
-  # local Postgres to dodge.
-  DATABASE_URL: postgresql://awsug:awsug_local_dev@localhost:5432/awsug_lao
-  DEV_AUTH: 'true'
-  PUBLIC_SITE_URL: http://localhost:4173
-  PUBLIC_API_URL: http://localhost:3000
-
 jobs:
   verify:
     name: Lint, typecheck and test
     runs-on: ubuntu-latest
+
+    # Scoped to this job deliberately. At workflow level these also reached the
+    # deploy job, where a localhost DATABASE_URL made `sst shell -- db:migrate`
+    # try to migrate a database that does not exist on the runner, and
+    # DEV_AUTH=true had no business being anywhere near a deployed stage.
+    env:
+      # Matches docker-compose.yml, but on port 5432 — a CI runner has no
+      # competing local Postgres to dodge.
+      DATABASE_URL: postgresql://awsug:awsug_local_dev@localhost:5432/awsug_lao
+      DEV_AUTH: 'true'
+      PUBLIC_SITE_URL: http://localhost:4173
+      PUBLIC_API_URL: http://localhost:3000
 
     services:
       postgres:
