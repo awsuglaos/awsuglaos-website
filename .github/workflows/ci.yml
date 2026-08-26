@@ -221,27 +221,34 @@ jobs:
         # environment variable only fails on the first render, long after
         # CloudFront says it is ready. Fail the run here rather than finding out
         # from a visitor.
+        #
+        # The URL is derived rather than read back from the CLI: there is no
+        # `sst outputs` command, and an earlier version of this step silently
+        # failed because of it. This mirrors the host rule in sst.config.ts —
+        # production takes the apex, every other stage takes <stage>.<domain>.
         env:
           SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
-          SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
         run: |
           STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
-          # `sst outputs` indents its lines, so an anchored /^web/ matches nothing
-          # and leaves URL empty — which then fails every curl and reports a
-          # broken deploy for a site that is perfectly fine. Match the key as a
-          # field instead, and refuse to poll at all if it came back empty.
-          URL=$(pnpm sst outputs --stage "$STAGE" | awk '$1 == "web:" { print $2 }' | tail -1)
-          if [ -z "$URL" ]; then
-            echo "::error::Could not read the 'web' output from sst outputs. Deploy may have succeeded; the smoke test cannot verify it."
-            pnpm sst outputs --stage "$STAGE" || true
-            exit 1
+
+          if [ -z "$SITE_DOMAIN" ]; then
+            echo "SITE_DOMAIN is unset, so this stage runs on a generated CloudFront URL."
+            echo "Nothing to smoke test against; skipping."
+            exit 0
+          fi
+
+          if [ "$STAGE" = "production" ]; then
+            URL="https://$SITE_DOMAIN"
+          else
+            URL="https://$STAGE.$SITE_DOMAIN"
           fi
           echo "Site: $URL"
+
           for i in $(seq 1 20); do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$URL" || true)
             [ "$STATUS" = "200" ] && echo "OK" && exit 0
             echo "attempt $i: HTTP $STATUS"
             sleep 15
           done
-          echo "Site did not return 200 after the deploy" >&2
+          echo "::error::$URL did not return 200 after the deploy" >&2
           exit 1
