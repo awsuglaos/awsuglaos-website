@@ -226,7 +226,16 @@ jobs:
           SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
         run: |
           STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
-          URL=$(pnpm sst outputs --stage "$STAGE" | awk '/^web/ { print $NF }')
+          # `sst outputs` indents its lines, so an anchored /^web/ matches nothing
+          # and leaves URL empty — which then fails every curl and reports a
+          # broken deploy for a site that is perfectly fine. Match the key as a
+          # field instead, and refuse to poll at all if it came back empty.
+          URL=$(pnpm sst outputs --stage "$STAGE" | awk '$1 == "web:" { print $2 }' | tail -1)
+          if [ -z "$URL" ]; then
+            echo "::error::Could not read the 'web' output from sst outputs. Deploy may have succeeded; the smoke test cannot verify it."
+            pnpm sst outputs --stage "$STAGE" || true
+            exit 1
+          fi
           echo "Site: $URL"
           for i in $(seq 1 20); do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$URL" || true)
