@@ -217,7 +217,14 @@ export default $config({
 			}
 		});
 
-		const userPoolClient = userPool.addClient('Web', {
+		/*
+		 * Named for what it is rather than "Web": Cognito is only ever used by the
+		 * /admin backoffice — public visitors never authenticate — and the site
+		 * itself already owns the name `Web` below. Two components sharing a name
+		 * fails the deploy outright with "Component name Web is not unique",
+		 * which is not obvious from either declaration on its own.
+		 */
+		const userPoolClient = userPool.addClient('Backoffice', {
 			callbackUrls: [$interpolate`${siteUrl}/admin/callback`],
 			transform: {
 				client: {
