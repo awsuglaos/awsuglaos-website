@@ -162,10 +162,74 @@ that follows.
 
 ### 2.2 Create the role
 
+Two ways. **The CloudShell one is recommended** — it is exact, idempotent, and
+ends by printing the one value you need. The console flow involves a form that
+rewrites your trust policy behind you, which is where this step usually goes
+wrong.
+
+#### Option A — CloudShell (recommended)
+
+Open **CloudShell** (the `>_` icon in the console top bar) and paste this whole
+block. It is safe to re-run: it updates rather than duplicates.
+
+```bash
+ROLE_NAME=github-actions-awsug-lao-deploy
+REPO=awsuglaos/awsuglaos-website
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+cat > /tmp/trust.json <<JSON
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": [
+            "repo:${REPO}:environment:staging",
+            "repo:${REPO}:environment:production"
+          ]
+        }
+      }
+    }
+  ]
+}
+JSON
+
+aws iam create-role --role-name "$ROLE_NAME" \
+  --assume-role-policy-document file:///tmp/trust.json \
+  --description "GitHub Actions OIDC deploy role for awsug-lao" >/dev/null 2>&1 \
+  || aws iam update-assume-role-policy --role-name "$ROLE_NAME" \
+       --policy-document file:///tmp/trust.json
+
+aws iam attach-role-policy --role-name "$ROLE_NAME" \
+  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+
+echo
+echo "AWS_DEPLOY_ROLE_ARN ="
+aws iam get-role --role-name "$ROLE_NAME" --query Role.Arn --output text
+```
+
+The last line is the value for the GitHub secret. It starts with `arn:` and
+contains `:role/`.
+
+> If the first command fails with `NoSuchEntity` mentioning
+> `oidc-provider`, the identity provider from 2.1 does not exist yet. Go back
+> and create it, then re-run this block.
+
+#### Option B — console
+
 1. **IAM** → **Roles** → **Create role** → **Web identity**.
 2. Identity provider: `token.actions.githubusercontent.com`; Audience:
-   `sts.amazonaws.com`. Leave the GitHub organisation fields blank — the trust
-   policy below is more precise than that form allows.
+   `sts.amazonaws.com`. Fill in the GitHub organisation (`awsuglaos`) and
+   repository (`awsuglaos-website`) if the form asks for them — step 5 replaces
+   whatever trust policy the form generates, so the values here only need to get
+   you past the wizard.
 3. Permissions: attach **`AdministratorAccess`**.
 4. Name it **`github-actions-awsug-lao-deploy`** and create it.
 5. Open the new role → **Trust relationships** → **Edit trust policy** and
@@ -200,9 +264,20 @@ that follows.
    twelve digits for the account, then `:role/`. If what you copied contains
    `oidc-provider`, it is the identity provider from 2.1, not the role.
 
-Paste it as a single line with no trailing newline. The workflow checks the
-shape of this value before it tries to use it, so a mistake here fails in
-seconds with a specific message rather than after a two-minute retry loop.
+#### Storing it without a trailing newline
+
+Pasting into the GitHub secret box can carry an invisible line break. Setting it
+from the `gh` CLI cannot:
+
+```bash
+ARN='paste-the-role-arn-here'
+gh secret set AWS_DEPLOY_ROLE_ARN --env staging    --body "$ARN"
+gh secret set AWS_DEPLOY_ROLE_ARN --env production --body "$ARN"
+```
+
+The workflow validates the shape of this value before using it, so a mistake
+fails in seconds with a specific message rather than after a two-minute retry
+loop.
 
 ### Why `AdministratorAccess`
 
