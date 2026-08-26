@@ -360,6 +360,14 @@ export default $config({
 			// Serves through the shared distribution rather than one of its own, so
 			// that /uploads/* above is same-origin with the app.
 			router: { instance: router },
+			/*
+			 * Default is 20s. Aurora's resume from auto-pause takes ~15-25s, and
+			 * packages/db retries across it rather than 500-ing at a visitor, so the
+			 * request has to be allowed to outlast the wake. Kept at 30s because
+			 * CloudFront gives an origin 30 seconds before returning a 504 — going
+			 * higher here would only move the failure, not remove it.
+			 */
+			server: { timeout: '30 seconds' },
 			link: [database, uploads],
 			environment: {
 				PUBLIC_API_URL: api.url,

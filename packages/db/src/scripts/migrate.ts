@@ -2,25 +2,12 @@ import './env.js';
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveDbConfig } from '../client.js';
+import { isDatabaseResuming, resolveDbConfig } from '../client.js';
 import * as schema from '../schema.js';
 
 const migrationsFolder = resolve(dirname(fileURLToPath(import.meta.url)), '../../drizzle');
 
 const config = resolveDbConfig();
-
-/**
- * Walks the cause chain looking for a specific AWS error name. The Data API
- * error arrives wrapped in Drizzle's own query error, so the name we want is
- * never on the top-level object.
- */
-function hasErrorName(error: unknown, name: string): boolean {
-	for (let e: unknown = error, depth = 0; e && depth < 8; depth++) {
-		if (typeof e === 'object' && (e as { name?: string }).name === name) return true;
-		e = (e as { cause?: unknown }).cause;
-	}
-	return false;
-}
 
 /**
  * Aurora is configured to scale to zero, so the first Data API call after an
@@ -37,7 +24,7 @@ async function withResumeRetry<T>(run: () => Promise<T>, attempts = 12): Promise
 		try {
 			return await run();
 		} catch (error) {
-			if (attempt >= attempts || !hasErrorName(error, 'DatabaseResumingException')) throw error;
+			if (attempt >= attempts || !isDatabaseResuming(error)) throw error;
 			console.log(`Aurora is resuming; retrying in 10s (attempt ${attempt}/${attempts})…`);
 			await new Promise((resolve) => setTimeout(resolve, 10_000));
 		}

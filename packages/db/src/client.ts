@@ -88,6 +88,67 @@ export function resolveDbConfig(env: NodeJS.ProcessEnv = process.env): DbConfig 
 }
 
 /**
+ * True when this error, or anything in its cause chain, is Aurora telling us it
+ * is waking from auto-pause.
+ *
+ * The name is never on the top-level object: the SDK error arrives wrapped by
+ * Drizzle's own query error, sometimes more than one layer deep.
+ */
+export function isDatabaseResuming(error: unknown): boolean {
+	for (let e: unknown = error, depth = 0; e && depth < 8; depth++) {
+		if (typeof e === 'object' && (e as { name?: string }).name === 'DatabaseResumingException') {
+			return true;
+		}
+		e = (e as { cause?: unknown }).cause;
+	}
+	return false;
+}
+
+/*
+ * Aurora scales to zero, so the first Data API call after an idle period fails
+ * immediately with DatabaseResumingException rather than blocking until the
+ * cluster is up. The SDK leaves `$retryable` undefined, so its own retry
+ * strategy ignores it — which means an ordinary visitor arriving after a quiet
+ * hour got a 500 instead of a slow page.
+ *
+ * The budget is deliberate. The server Lambda's timeout is 30 seconds (set in
+ * sst.config.ts) and CloudFront gives an origin 30 seconds before it returns a
+ * 504, so the wait has to finish inside that. Eight attempts at 2.5s covers the
+ * ~15-25s a resume normally takes, and still leaves room for the render.
+ */
+const RESUME_ATTEMPTS = 8;
+const RESUME_DELAY_MS = 2_500;
+
+/**
+ * Retries the whole call rather than marking the error retryable and delegating
+ * to the SDK, so the behaviour does not depend on where the retry middleware
+ * happens to sit in the stack.
+ */
+function withResumeRetry(client: { middlewareStack: { add: (m: never, o: never) => void } }): void {
+	const middleware =
+		(next: (args: unknown) => Promise<unknown>) =>
+		async (args: unknown): Promise<unknown> => {
+			for (let attempt = 1; ; attempt++) {
+				try {
+					return await next(args);
+				} catch (error) {
+					if (attempt >= RESUME_ATTEMPTS || !isDatabaseResuming(error)) throw error;
+					await new Promise((resolve) => setTimeout(resolve, RESUME_DELAY_MS));
+				}
+			}
+		};
+
+	client.middlewareStack.add(
+		middleware as never,
+		{
+			// Outermost step, so a retry replays serialisation too.
+			step: 'initialize',
+			name: 'auroraResumeRetry'
+		} as never
+	);
+}
+
+/**
  * Drivers are imported dynamically so each deployment target only bundles the
  * one it uses — `pg` never reaches the Lambda bundle, the AWS SDK never reaches
  * local dev.
@@ -99,7 +160,10 @@ export async function createDatabase(config: DbConfig = resolveDbConfig()): Prom
 			import('@aws-sdk/client-rds-data')
 		]);
 
-		return drizzle(new RDSDataClient({}), {
+		const client = new RDSDataClient({});
+		withResumeRetry(client);
+
+		return drizzle(client, {
 			database: config.database,
 			secretArn: config.secretArn,
 			resourceArn: config.resourceArn,
