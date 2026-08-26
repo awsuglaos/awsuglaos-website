@@ -12,8 +12,13 @@ import * as eventService from '../src/services/events.js';
 import * as registrationService from '../src/services/registrations.js';
 import { futureEvent, getTestDb, makeContext } from './helpers.js';
 
+/**
+ * A submission to the default form. `fullName` and `email` are the block ids
+ * DEFAULT_FORM_BLOCKS uses, and the two questions tagged with the name and
+ * email roles — which is what makes them land in the mirrored columns.
+ */
 function attendee(i: number) {
-	return { fullName: `Attendee ${i}`, email: `attendee${i}@example.la` };
+	return { answers: { fullName: `Attendee ${i}`, email: `attendee${i}@example.la` } };
 }
 
 describe('registerForEvent', () => {
@@ -91,14 +96,14 @@ describe('registerForEvent', () => {
 		await registrationService.registerForEvent(
 			ctx,
 			'test-event',
-			{ fullName: 'A', email: 'someone@example.la' },
+			{ answers: { fullName: 'A', email: 'someone@example.la' } },
 			'en'
 		);
 		await expect(
 			registrationService.registerForEvent(
 				ctx,
 				'test-event',
-				{ fullName: 'A', email: 'SOMEONE@example.la' },
+				{ answers: { fullName: 'A', email: 'SOMEONE@example.la' } },
 				'en'
 			)
 		).rejects.toBeInstanceOf(AlreadyRegisteredError);
@@ -176,9 +181,9 @@ describe('checkIn', () => {
 
 	it('rejects an unknown ticket code', async () => {
 		const ctx = await makeContext();
-		await expect(
-			registrationService.checkIn(ctx, { ticketCode: 'NOPE' })
-		).rejects.toBeInstanceOf(NotFoundError);
+		await expect(registrationService.checkIn(ctx, { ticketCode: 'NOPE' })).rejects.toBeInstanceOf(
+			NotFoundError
+		);
 	});
 
 	it('records only one check-in when two scanners race the same ticket', async () => {
@@ -226,15 +231,16 @@ describe('stats and export', () => {
 		await registrationService.registerForEvent(
 			ctx,
 			'test-event',
-			{ fullName: 'Bounmy "Boun", Jr.', email: 'boun@example.la' },
+			{ answers: { fullName: 'Bounmy "Boun", Jr.', email: 'boun@example.la' } },
 			'en'
 		);
 
 		const rows = await registrationService.listRegistrations(ctx, event.id);
-		const csv = registrationService.registrationsToCsv(rows);
+		const csv = registrationService.registrationsToCsv(rows, event.formSchema);
 
+		// The columns are the form's questions, by label, not a fixed list.
 		expect(csv.split('\r\n')[0]).toBe(
-			'full_name,email,phone,organisation,ticket_code,checked_in_at,registered_at'
+			'"Full name","Email address","Phone","Organisation","ticket_code","checked_in_at","registered_at","other_answers"'
 		);
 		expect(csv).toContain('"Bounmy ""Boun"", Jr."');
 	});

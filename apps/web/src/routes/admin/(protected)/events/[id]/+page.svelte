@@ -6,6 +6,8 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import ChartNoAxesColumn from '@lucide/svelte/icons/chart-no-axes-column';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import MessageSquare from '@lucide/svelte/icons/message-square';
 	import Mic from '@lucide/svelte/icons/mic';
@@ -28,13 +30,19 @@
 		{#if data.event.status === 'published'}
 			<Button href="/events/{data.event.slug}" target="_blank" variant="ghost" size="sm">
 				<ExternalLink data-icon="inline-start" />
-
-				<FormAlert {form} />
 				View
 			</Button>
 		{/if}
 	{/snippet}
 </PageHeader>
+
+<!--
+	Directly under the header, where every other admin page puts it. It used to
+	sit inside the "View" button in the snippet above, behind the published
+	check — so saving a draft, which is most of the saving anyone does here,
+	confirmed nothing at all.
+-->
+<FormAlert {form} />
 
 <!--
 	The things you do *to* an event, as opposed to editing its copy. They sit
@@ -43,6 +51,14 @@
 	*after*, which is when slides and photos actually get collected.
 -->
 <nav class="mt-6 flex flex-wrap gap-2" aria-label="Event sections">
+	<Button href="/admin/events/{data.event.id}/form" variant="outline" size="sm">
+		<ClipboardList data-icon="inline-start" />
+		Registration form
+	</Button>
+	<Button href="/admin/events/{data.event.id}/insights" variant="outline" size="sm">
+		<ChartNoAxesColumn data-icon="inline-start" />
+		Insights
+	</Button>
 	<Button href="/admin/events/{data.event.id}/lineup" variant="outline" size="sm">
 		<Mic data-icon="inline-start" />
 		Line-up
@@ -61,9 +77,9 @@
 	</Button>
 </nav>
 
-<form method="POST" action="?/save" class="mt-8">
-	<EventForm event={data.event} />
-</form>
+<div class="mt-8">
+	<EventForm event={data.event} result={form} action="?/save" />
+</div>
 
 <DangerZone
 	title="Delete event"

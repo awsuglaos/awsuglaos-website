@@ -1,5 +1,5 @@
 import { adminApi } from '$lib/server/admin';
-import { field } from '$lib/server/form';
+import { field, formValues, toAdminFailure, zodFail } from '$lib/server/form';
 import { inviteUserInputSchema, isDomainError, userRoleSchema } from '@awsug/shared';
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -21,21 +21,20 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => ({
 export const actions: Actions = {
 	invite: async ({ request, cookies, fetch }) => {
 		const data = await request.formData();
+		const values = formValues(data);
+
 		const parsed = inviteUserInputSchema.safeParse({
 			email: field(data, 'email'),
 			name: field(data, 'name'),
 			role: field(data, 'role')
 		});
 
-		if (!parsed.success) {
-			return fail(400, { message: parsed.error.issues[0]?.message ?? 'Check the details' });
-		}
+		if (!parsed.success) return zodFail(parsed.error, values);
 
 		try {
 			await adminApi(cookies, fetch).post('/admin/users', parsed.data);
 		} catch (error) {
-			if (isDomainError(error)) return fail(error.status, { message: error.message });
-			throw error;
+			return toAdminFailure(error, values);
 		}
 
 		return { message: `Invited ${parsed.data.email}.` };

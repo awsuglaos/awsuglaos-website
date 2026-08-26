@@ -12,5 +12,6 @@ export * from './schemas/sponsor.js';
 export * from './schemas/newsletter.js';
 export * from './schemas/speaker.js';
 export * from './schemas/feedback.js';
+export * from './schemas/form.js';
 export * from './schemas/material.js';
 export * from './schemas/user.js';

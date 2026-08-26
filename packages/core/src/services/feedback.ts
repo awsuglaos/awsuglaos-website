@@ -95,7 +95,8 @@ export async function submitFeedback(
 }
 
 export interface FeedbackEntry extends EventFeedback {
-	attendeeName: string;
+	/** Null when the event's form has no question tagged as the name. */
+	attendeeName: string | null;
 }
 
 export async function listFeedback(ctx: AppContext, eventId: string): Promise<FeedbackEntry[]> {

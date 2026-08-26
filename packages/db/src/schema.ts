@@ -2,12 +2,16 @@ import {
 	LOCALES,
 	publishStatusSchema,
 	resourceKindSchema,
+	siteFeedbackStatusSchema,
 	sponsorTierSchema,
 	userRoleSchema,
+	type Answers,
+	type FormDefinition,
 	type Locale,
 	type PublishStatus,
 	type ResourceKind,
 	type RichTextDoc,
+	type SiteFeedbackStatus,
 	type SponsorTier,
 	type UserRole
 } from '@awsug/shared';
@@ -164,6 +168,17 @@ export const events = pgTable(
 		registeredCount: integer('registered_count').notNull().default(0),
 		coverImageUrl: text('cover_image_url'),
 		status: text('status').$type<PublishStatus>().notNull().default('draft'),
+		/**
+		 * The registration form, as an ordered list of blocks. See
+		 * packages/shared/src/schemas/form.ts.
+		 *
+		 * JSON rather than rows because it is written and read as one document:
+		 * saving a form is a single atomic write, ordering is array position, and
+		 * adding a new kind of question needs no migration. Existing events were
+		 * backfilled with DEFAULT_FORM_BLOCKS, so the form an attendee sees only
+		 * changes when an organiser changes it.
+		 */
+		formSchema: jsonb('form_schema').$type<FormDefinition>().notNull().default([]),
 		...timestamps
 	},
 	(t) => [
@@ -213,10 +228,24 @@ export const registrations = pgTable(
 		eventId: uuid('event_id')
 			.notNull()
 			.references(() => events.id, { onDelete: 'cascade' }),
-		fullName: varchar('full_name', { length: 120 }).notNull(),
-		email: varchar('email', { length: 254 }).notNull(),
+		/*
+		 * Nullable since the form became free-form. These four are no longer
+		 * fields in their own right — they are a *mirror* of whichever questions
+		 * carry the matching role, written at registration time so that tickets,
+		 * the confirmation email, the check-in list and the CSV export keep
+		 * reading one column instead of digging through `answers`.
+		 *
+		 * Null means the organiser removed that question from the form. The
+		 * unique index below still works: Postgres treats NULLs as distinct, so an
+		 * event with no email question simply stops de-duplicating rather than
+		 * collapsing every anonymous registration into one row.
+		 */
+		fullName: varchar('full_name', { length: 120 }),
+		email: varchar('email', { length: 254 }),
 		phone: varchar('phone', { length: 20 }),
 		organisation: varchar('organisation', { length: 160 }),
+		/** Every answer, keyed by the question's block id. */
+		answers: jsonb('answers').$type<Answers>().notNull().default({}),
 		ticketCode: varchar('ticket_code', { length: 32 }).notNull().unique(),
 		checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
@@ -463,6 +492,43 @@ export const eventFeedback = pgTable(
 	]
 );
 
+/**
+ * Feedback sent from the public site, and its moderation state.
+ *
+ * Nothing here is visible to anyone until an organiser approves it — `pending`
+ * is the default and the public queries filter on `approved`, so a spam run
+ * lands in a queue rather than on the landing page. `archived` is the other
+ * outcome: read, dealt with, kept, never shown.
+ *
+ * `email` is for replying and is never published, whatever the status.
+ */
+export const siteFeedback = pgTable(
+	'site_feedback',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		name: varchar('name', { length: 120 }),
+		email: varchar('email', { length: 254 }),
+		subject: varchar('subject', { length: 200 }),
+		message: text('message').notNull(),
+		rating: smallint('rating'),
+		locale: text('locale').$type<Locale>().notNull().default('lo'),
+		/** Set when the note is about one event. Survives that event's deletion. */
+		eventId: uuid('event_id').references(() => events.id, { onDelete: 'set null' }),
+		status: text('status').$type<SiteFeedbackStatus>().notNull().default('pending'),
+		reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+		reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		// The queue is always read newest-first within one status, which is
+		// exactly what this index serves.
+		index('site_feedback_status_created_idx').on(t.status, t.createdAt),
+		check('site_feedback_status_valid', oneOf('status', siteFeedbackStatusSchema.options)),
+		check('site_feedback_locale_valid', oneOf('locale', LOCALES)),
+		check('site_feedback_rating_in_range', sql`${t.rating} IS NULL OR ${t.rating} BETWEEN 1 AND 5`)
+	]
+);
+
 export const newsletterSubs = pgTable(
 	'newsletter_subs',
 	{
@@ -557,6 +623,11 @@ export const registrationsRelations = relations(registrations, ({ one }) => ({
 	event: one(events, { fields: [registrations.eventId], references: [events.id] })
 }));
 
+export const siteFeedbackRelations = relations(siteFeedback, ({ one }) => ({
+	event: one(events, { fields: [siteFeedback.eventId], references: [events.id] }),
+	reviewer: one(users, { fields: [siteFeedback.reviewedBy], references: [users.id] })
+}));
+
 /* -------------------------------------------------------------------------- */
 /* Row types                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -581,3 +652,5 @@ export type EventPhoto = typeof eventPhotos.$inferSelect;
 export type NewEventPhoto = typeof eventPhotos.$inferInsert;
 export type EventFeedback = typeof eventFeedback.$inferSelect;
 export type NewEventFeedback = typeof eventFeedback.$inferInsert;
+export type SiteFeedbackRow = typeof siteFeedback.$inferSelect;
+export type NewSiteFeedback = typeof siteFeedback.$inferInsert;

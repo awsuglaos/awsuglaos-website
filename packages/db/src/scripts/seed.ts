@@ -1,10 +1,12 @@
 import './env.js';
 
 import {
+	DEFAULT_FORM_BLOCKS,
 	extractCoordinates,
 	generateTicketCode,
 	generateUnsubscribeToken,
 	plainTextToRichText,
+	type FormDefinition,
 	type RichTextDoc
 } from '@awsug/shared';
 import { sql } from 'drizzle-orm';
@@ -20,6 +22,7 @@ import {
 	events,
 	newsletterSubs,
 	registrations,
+	siteFeedback,
 	speakerTranslations,
 	speakers,
 	sponsors,
@@ -74,8 +77,7 @@ const agendaTable = (rows: [string, string][]) => ({
 	]
 });
 
-const doc = (...content: unknown[]): RichTextDoc =>
-	({ type: 'doc', content }) as RichTextDoc;
+const doc = (...content: unknown[]): RichTextDoc => ({ type: 'doc', content }) as RichTextDoc;
 
 /* -------------------------------------------------------------------------- */
 
@@ -322,7 +324,8 @@ const eventSeeds = [
 		endAt: hours(days(-86), 12),
 		capacity: 60,
 		status: 'published' as const,
-		locationUrl: 'https://www.google.com/maps/place/National+University+of+Laos/@17.9915,102.5628,16z',
+		locationUrl:
+			'https://www.google.com/maps/place/National+University+of+Laos/@17.9915,102.5628,16z',
 		coverImageUrl: 'https://placehold.co/1200x630/1e3a8a/ffffff?text=Intro+to+Cloud',
 		translations: [
 			{
@@ -368,7 +371,11 @@ for (const seed of eventSeeds) {
 		.values({
 			...row,
 			locationLat: coordinates?.lat ?? null,
-			locationLng: coordinates?.lng ?? null
+			locationLng: coordinates?.lng ?? null,
+			// The column defaults to an empty form, which would mean a seeded event
+			// asks a visitor nothing. `createEvent` seeds this for real events; the
+			// seed writes rows directly, so it has to do the same.
+			formSchema: DEFAULT_FORM_BLOCKS
 		})
 		.returning();
 	if (!event) throw new Error(`Failed to seed event ${seed.slug}`);
@@ -426,9 +433,14 @@ const pastRegistrations = await db
 			eventId: pastEvent.id,
 			fullName,
 			email,
+			// The mirrored columns above and `answers` say the same thing, which is
+			// exactly the invariant registerForEvent maintains in production.
+			answers: { fullName, email, phone: null, organisation: null },
 			ticketCode: generateTicketCode(),
 			checkedInAt: i < 6 ? hours(pastEvent.startAt, 0.5) : null,
-			createdAt: days(-90)
+			// Spread over the fortnight before the event so the insights chart has a
+			// shape rather than one tall bar.
+			createdAt: days(-90 - i)
 		}))
 	)
 	.returning();
@@ -440,10 +452,19 @@ await db
 
 const workshopSignups = attendees.slice(0, 4);
 await db.insert(registrations).values(
-	workshopSignups.map(([fullName, email]) => ({
+	workshopSignups.map(([fullName, email], i) => ({
 		eventId: workshop.id,
 		fullName,
 		email,
+		answers: {
+			fullName,
+			email,
+			phone: null,
+			organisation: null,
+			// Answers to the workshop's two extra questions, set below.
+			experience: ['New to AWS', 'Some experience', 'Use it daily', 'Some experience'][i] ?? null,
+			laptop: i !== 2
+		},
 		ticketCode: generateTicketCode()
 	}))
 );
@@ -451,6 +472,116 @@ await db
 	.update(events)
 	.set({ registeredCount: workshopSignups.length })
 	.where(sql`${events.id} = ${workshop.id}`);
+
+/* -------------------------------------------------------------------------- */
+/* A custom registration form                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The workshop asks two questions of its own on top of the default four, so a
+ * developer running the seed can see the builder, the public form and the
+ * insights page doing something the moment they open them.
+ */
+const workshopForm: FormDefinition = [
+	...DEFAULT_FORM_BLOCKS,
+	{
+		kind: 'content',
+		id: 'aboutYouHeading',
+		type: 'heading',
+		text: 'About your setup',
+		doc: null,
+		url: null,
+		alt: null,
+		caption: null
+	},
+	{
+		kind: 'question',
+		id: 'experience',
+		type: 'radio',
+		label: 'How much AWS have you used?',
+		help: 'It decides which room you start in — there is no wrong answer.',
+		placeholder: null,
+		required: true,
+		role: null,
+		options: ['New to AWS', 'Some experience', 'Use it daily'],
+		min: null,
+		max: null
+	},
+	{
+		kind: 'question',
+		id: 'laptop',
+		type: 'yesNo',
+		label: 'Will you bring a laptop?',
+		help: null,
+		placeholder: null,
+		required: false,
+		role: null,
+		options: [],
+		min: null,
+		max: null
+	}
+];
+
+await db
+	.update(events)
+	.set({ formSchema: workshopForm })
+	.where(sql`${events.id} = ${workshop.id}`);
+
+/* -------------------------------------------------------------------------- */
+/* Public site feedback                                                       */
+/* -------------------------------------------------------------------------- */
+
+console.log('Seeding site feedback…');
+
+/*
+ * One of each state, so the moderation queue, the public wall and the landing
+ * band all have something in them on a fresh database — and so it is obvious at
+ * a glance that a pending message does *not* appear publicly.
+ */
+await db.insert(siteFeedback).values([
+	{
+		name: 'Phetsamone Xayavong',
+		email: 'phetsamone@example.la',
+		subject: 'Thank you for the workshop',
+		message:
+			'The hands-on part was the best bit — I had a working API by the end of the afternoon. More of those, please.',
+		rating: 5,
+		locale: 'lo',
+		status: 'approved',
+		createdAt: days(-20)
+	},
+	{
+		name: 'Dara Sengdara',
+		email: null,
+		subject: null,
+		message: 'Could the next meetup start a little later? Getting across town by 17:00 is hard.',
+		rating: 4,
+		locale: 'en',
+		status: 'approved',
+		createdAt: days(-12)
+	},
+	{
+		name: 'Khamphet Sourinho',
+		email: 'khamphet@example.la',
+		subject: 'Slides from the Bedrock talk',
+		message:
+			'Are the slides from the Bedrock session going to be posted? I could not write fast enough.',
+		rating: null,
+		locale: 'lo',
+		status: 'pending',
+		createdAt: days(-2)
+	},
+	{
+		name: null,
+		email: null,
+		subject: null,
+		message: 'Buy cheap watches at spam-example.invalid!!!',
+		rating: null,
+		locale: 'en',
+		status: 'archived',
+		createdAt: days(-5)
+	}
+]);
 
 /* -------------------------------------------------------------------------- */
 
@@ -563,8 +694,14 @@ const articleSeeds = [
 				content: doc(
 					p('You can get a long way on AWS without paying anything.'),
 					h(2, 'Do these first'),
-					bullets(['Set a billing alarm', 'Enable MFA on the root user', 'Shut down idle resources']),
-					p('The usual sources of a surprise bill are billed by the hour, not by request — EC2 and NAT Gateways especially.')
+					bullets([
+						'Set a billing alarm',
+						'Enable MFA on the root user',
+						'Shut down idle resources'
+					]),
+					p(
+						'The usual sources of a surprise bill are billed by the hour, not by request — EC2 and NAT Gateways especially.'
+					)
 				)
 			}
 		]
@@ -623,4 +760,5 @@ console.log(`  ${speakerSeeds.length} speakers across 5 talk slots`);
 console.log('  4 sponsors, incl. Toh-Lao at Gold for Community Day but Silver group-wide');
 console.log(`  ${articleSeeds.length} articles (2 published, 1 draft) with headings and lists`);
 console.log(`  12 registrations, ${feedbackSeeds.length} feedback responses, 3 subscribers`);
+console.log('  1 custom registration form (the workshop), 4 site feedback messages');
 process.exit(0);

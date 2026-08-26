@@ -17,9 +17,9 @@
 
 <FormAlert {form} />
 
-<form method="POST" action="?/save" class="mt-8">
-	<SpeakerForm speaker={data.speaker} />
-</form>
+<div class="mt-8">
+	<SpeakerForm speaker={data.speaker} result={form} action="?/save" />
+</div>
 
 <DangerZone
 	title="Delete speaker"

@@ -1,4 +1,5 @@
 import { adminApi } from '$lib/server/admin';
+import { formValues, toAdminFailure, translationPathMapper, zodFail } from '$lib/server/form';
 import { parseEventForm } from '$lib/server/parse-admin-forms';
 import { eventInputSchema, isDomainError, type RichTextDoc } from '@awsug/shared';
 import { error, fail, redirect } from '@sveltejs/kit';
@@ -35,16 +36,19 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
 
 export const actions: Actions = {
 	save: async ({ request, params, cookies, fetch }) => {
-		const parsed = eventInputSchema.safeParse(parseEventForm(await request.formData()));
+		const data = await request.formData();
+		const values = formValues(data);
+		const input = parseEventForm(data);
+
+		const parsed = eventInputSchema.safeParse(input);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.issues.map((i) => i.message).join('. ') });
+			return zodFail(parsed.error, values, { mapPath: translationPathMapper(input) });
 		}
 
 		try {
 			await adminApi(cookies, fetch).put(`/admin/events/${params.id}`, parsed.data);
 		} catch (error_) {
-			if (isDomainError(error_)) return fail(400, { message: error_.message });
-			throw error_;
+			return toAdminFailure(error_, values);
 		}
 
 		return { message: 'Saved.' };

@@ -30,6 +30,7 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 		{ path: '/', changefreq: 'weekly', priority: '1.0', lastmod: null as Date | null },
 		{ path: '/events', changefreq: 'daily', priority: '0.9', lastmod: null },
 		{ path: '/news', changefreq: 'daily', priority: '0.8', lastmod: null },
+		{ path: '/feedback', changefreq: 'weekly', priority: '0.5', lastmod: null },
 		...events.map((e) => ({
 			path: `/events/${e.slug}`,
 			changefreq: 'weekly',

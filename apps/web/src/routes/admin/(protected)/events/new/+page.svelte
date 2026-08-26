@@ -16,6 +16,6 @@
 
 <FormAlert {form} />
 
-<form method="POST" class="mt-8">
-	<EventForm submitLabel="Create event" />
-</form>
+<div class="mt-8">
+	<EventForm result={form} submitLabel="Create event" />
+</div>

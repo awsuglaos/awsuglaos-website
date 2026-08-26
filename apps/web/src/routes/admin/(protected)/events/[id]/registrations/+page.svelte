@@ -27,8 +27,10 @@
 			? data.registrations
 			: data.registrations.filter((r) => {
 					const needle = query.trim().toLocaleLowerCase();
-					return [r.fullName, r.email, r.ticketCode, r.organisation ?? ''].some((v) =>
-						v.toLocaleLowerCase().includes(needle)
+					// Name and email are only present when the event's form asks for
+					// them, so every haystack strand has to survive being null.
+					return [r.fullName, r.email, r.ticketCode, r.organisation].some((v) =>
+						(v ?? '').toLocaleLowerCase().includes(needle)
 					);
 				})
 	);
@@ -95,12 +97,12 @@
 				{#each filtered as r (r.id)}
 					<Table.Row>
 						<Table.Cell class="font-medium">
-							{r.fullName}
+							{r.fullName ?? '—'}
 							{#if r.organisation}
 								<span class="text-muted-foreground block text-xs">{r.organisation}</span>
 							{/if}
 						</Table.Cell>
-						<Table.Cell class="text-muted-foreground">{r.email}</Table.Cell>
+						<Table.Cell class="text-muted-foreground">{r.email ?? '—'}</Table.Cell>
 						<Table.Cell class="text-muted-foreground whitespace-nowrap">
 							{r.phone ?? '—'}
 						</Table.Cell>
@@ -120,9 +122,7 @@
 								<Empty.Header>
 									<Empty.Media variant="icon"><Users /></Empty.Media>
 									<Empty.Description>
-										{data.registrations.length === 0
-											? 'No registrations yet.'
-											: 'No matches.'}
+										{data.registrations.length === 0 ? 'No registrations yet.' : 'No matches.'}
 									</Empty.Description>
 								</Empty.Header>
 							</Empty.Root>

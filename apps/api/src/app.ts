@@ -2,9 +2,11 @@ import {
 	articleService,
 	eventService,
 	feedbackService,
+	formAnalyticsService,
 	materialService,
 	newsletterService,
 	registrationService,
+	siteFeedbackService,
 	speakerService,
 	sponsorService,
 	userService,
@@ -18,10 +20,13 @@ import {
 	inviteUserInputSchema,
 	isDomainError,
 	presignUploadInputSchema,
+	setEventFormInputSchema,
 	setEventPhotosInputSchema,
 	setEventResourcesInputSchema,
 	setEventSpeakersInputSchema,
 	setEventSponsorsInputSchema,
+	setSiteFeedbackStatusInputSchema,
+	siteFeedbackStatusSchema,
 	speakerInputSchema,
 	sponsorInputSchema,
 	updateUserProfileInputSchema,
@@ -160,11 +165,53 @@ admin.get('/events/:id/registrations.csv', async (c) => {
 	const rows = await registrationService.listRegistrations(ctx, id);
 
 	// A BOM so Excel opens the Lao names as UTF-8 instead of mojibake.
-	const csv = `﻿${registrationService.registrationsToCsv(rows)}`;
+	// The form decides the columns — one per question, as it stands today.
+	const csv = `﻿${registrationService.registrationsToCsv(rows, event.formSchema)}`;
 
 	c.header('content-type', 'text/csv; charset=utf-8');
 	c.header('content-disposition', `attachment; filename="${event.slug}-registrations.csv"`);
 	return c.body(csv);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Registration form                                                          */
+/* -------------------------------------------------------------------------- */
+
+admin.get('/events/:id/form', async (c) =>
+	c.json(await eventService.getFormSchema(await getContext(), c.req.param('id')))
+);
+
+admin.put('/events/:id/form', requireRole('editor'), async (c) => {
+	const input = await body(c, setEventFormInputSchema);
+	return c.json(await eventService.setFormSchema(await getContext(), c.req.param('id'), input));
+});
+
+/**
+ * What the answers add up to.
+ *
+ * Aggregated here rather than in the browser: the raw answers include every
+ * free-text reply and every email address, and shipping the lot to a dashboard
+ * that only draws bars would put more personal data on the wire than the page
+ * needs. The registrations endpoint above is still there for the cases that
+ * genuinely want row-level detail.
+ */
+admin.get('/events/:id/analytics', async (c) => {
+	const ctx = await getContext();
+	const id = c.req.param('id');
+
+	const [event, rows, stats, feedback] = await Promise.all([
+		eventService.getEventById(ctx, id),
+		registrationService.listRegistrations(ctx, id),
+		registrationService.getEventStats(ctx, id),
+		feedbackService.getFeedbackAverages(ctx, id)
+	]);
+
+	return c.json({
+		analytics: formAnalyticsService.summariseRegistrations(event.formSchema, rows),
+		stats,
+		feedback,
+		capacity: event.capacity
+	});
 });
 
 /* -------------------------------------------------------------------------- */
@@ -328,6 +375,44 @@ admin.get('/events/:id/feedback', async (c) => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* Public site feedback                                                       */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Reading the queue is open to any signed-in operator; changing what the public
+ * sees is not, so the writes take `requireRole('editor')`. Submitting is not
+ * here at all — that is an unauthenticated public write and lives in the
+ * SvelteKit action, alongside registration and the newsletter.
+ */
+
+admin.get('/site-feedback', async (c) => {
+	const status = siteFeedbackStatusSchema.safeParse(c.req.query('status'));
+	return c.json(
+		await siteFeedbackService.listSiteFeedback(
+			await getContext(),
+			status.success ? status.data : undefined
+		)
+	);
+});
+
+admin.put('/site-feedback/:id/status', requireRole('editor'), async (c) => {
+	const input = await body(c, setSiteFeedbackStatusInputSchema);
+	return c.json(
+		await siteFeedbackService.setSiteFeedbackStatus(
+			await getContext(),
+			c.req.param('id'),
+			input.status,
+			currentUser(c).id
+		)
+	);
+});
+
+admin.delete('/site-feedback/:id', requireRole('editor'), async (c) => {
+	await siteFeedbackService.deleteSiteFeedback(await getContext(), c.req.param('id'));
+	return c.body(null, 204);
+});
+
+/* -------------------------------------------------------------------------- */
 /* Users                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -380,10 +465,11 @@ admin.delete('/users/:id', requireRole('admin'), async (c) => {
 
 admin.get('/dashboard', async (c) => {
 	const ctx = await getContext();
-	const [events, articles, subscribers] = await Promise.all([
+	const [events, articles, subscribers, pendingFeedback] = await Promise.all([
 		eventService.listAllEvents(ctx),
 		articleService.listAllArticles(ctx),
-		newsletterService.listSubscribers(ctx)
+		newsletterService.listSubscribers(ctx),
+		siteFeedbackService.countPendingFeedback(ctx)
 	]);
 
 	const perEvent = await Promise.all(
@@ -405,7 +491,10 @@ admin.get('/dashboard', async (c) => {
 			publishedArticles: articles.filter((a) => a.status === 'published').length,
 			registrations: perEvent.reduce((sum, e) => sum + e.registered, 0),
 			checkedIn: perEvent.reduce((sum, e) => sum + e.checkedIn, 0),
-			subscribers: subscribers.filter((s) => !s.unsubscribedAt).length
+			subscribers: subscribers.filter((s) => !s.unsubscribedAt).length,
+			// Rides along on the call the protected layout already makes, so the
+			// sidebar badge costs no extra round trip.
+			pendingFeedback
 		},
 		events: perEvent.sort((a, b) => b.startAt.getTime() - a.startAt.getTime())
 	});

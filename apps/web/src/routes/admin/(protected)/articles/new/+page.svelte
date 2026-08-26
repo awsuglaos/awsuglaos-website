@@ -13,6 +13,6 @@
 
 <FormAlert {form} />
 
-<form method="POST" class="mt-8">
-	<ArticleForm submitLabel="Create article" />
-</form>
+<div class="mt-8">
+	<ArticleForm result={form} submitLabel="Create article" />
+</div>

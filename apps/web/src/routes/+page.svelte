@@ -6,6 +6,7 @@
 	import MapHud from '$lib/components/map/MapHud.svelte';
 	import NewsletterForm from '$lib/components/NewsletterForm.svelte';
 	import { HUB } from '$lib/map/places';
+	import { SPONSOR_TILE } from '$lib/sponsor-tiles';
 	import Seo from '$lib/components/Seo.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -14,6 +15,7 @@
 	import { formatDateTime, isoDate } from '$lib/format';
 	import * as m from '$lib/paraglide/messages';
 	import { localizeHref } from '$lib/paraglide/runtime';
+	import { cn } from '$lib/utils';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
 	import MapPin from '@lucide/svelte/icons/map-pin';
@@ -93,7 +95,9 @@
 			-->
 			<div class="flex items-center gap-3">
 				<BrandLogo variant="mark" class="size-11 shrink-0 sm:size-12" eager />
-				<span class="text-foreground/90 text-sm font-semibold tracking-tight text-balance sm:text-base">
+				<span
+					class="text-foreground/90 text-sm font-semibold tracking-tight text-balance sm:text-base"
+				>
 					{m.hero_brand()}
 				</span>
 			</div>
@@ -123,7 +127,6 @@
 				</Button>
 			</div>
 		</div>
-
 	</div>
 </section>
 
@@ -333,28 +336,32 @@
 			{#each sponsorsByTier as group (group.tier)}
 				<div
 					data-sponsor-tier={group.tier}
-					class="grid gap-x-6 gap-y-3 py-5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] sm:items-center"
+					class="grid gap-x-6 gap-y-4 py-6 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] sm:items-center"
 				>
 					<h3 class="text-muted-foreground font-mono text-[0.6875rem] tracking-[0.16em] uppercase">
 						{group.tier}
 					</h3>
 					<ul class="flex list-none flex-wrap items-center gap-3 p-0">
 						{#each group.items as sponsor (sponsor.id)}
+							{@const size = SPONSOR_TILE[group.tier]}
 							<li
-								class="border-border bg-card lift hover:border-foreground/20 flex h-16 items-center justify-center rounded-xl border px-5"
+								class={cn(
+									'border-border bg-card lift hover:border-foreground/20 flex items-center justify-center rounded-xl border',
+									size.tile
+								)}
 							>
 								{#if sponsor.websiteUrl}
 									<a
 										href={sponsor.websiteUrl}
 										rel="noopener noreferrer sponsored"
 										target="_blank"
-										class="focus-visible:ring-ring rounded outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
+										class="focus-visible:ring-ring flex items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
 									>
 										<img
 											src={sponsor.logoUrl}
 											alt={sponsor.name}
 											loading="lazy"
-											class="h-8 w-auto max-w-36 object-contain"
+											class={cn('h-auto w-auto object-contain', size.logo)}
 										/>
 									</a>
 								{:else}
@@ -362,7 +369,7 @@
 										src={sponsor.logoUrl}
 										alt={sponsor.name}
 										loading="lazy"
-										class="h-8 w-auto max-w-36 object-contain"
+										class={cn('h-auto w-auto object-contain', size.logo)}
 									/>
 								{/if}
 							</li>
@@ -371,6 +378,51 @@
 				</div>
 			{/each}
 		</div>
+	</section>
+{/if}
+
+<!--
+	What people sent in, once an organiser approved it. The whole section is
+	omitted when nothing is approved, so an empty moderation queue never leaves a
+	hollow "testimonials" heading on the landing page.
+-->
+{#if data.feedback.length > 0}
+	<section class="mx-auto max-w-6xl px-4 pb-16 sm:pb-20">
+		<div class="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+			<h2 class="text-2xl font-bold tracking-tight sm:text-3xl">{m.feedback_wall_title()}</h2>
+			<a
+				href={localizeHref('/feedback')}
+				class="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-md text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+			>
+				{m.feedback_wall_more()}
+				<ArrowRight class="size-4" aria-hidden="true" />
+			</a>
+		</div>
+
+		<ul class="grid list-none gap-4 p-0 sm:grid-cols-3">
+			{#each data.feedback as entry (entry.id)}
+				<li>
+					<Card.Root class="h-full [--card-spacing:--spacing(5)]">
+						<Card.Content class="flex h-full flex-col gap-3">
+							{#if entry.rating}
+								<p class="text-primary text-sm" aria-label="{entry.rating} out of 5">
+									<span aria-hidden="true">{'★'.repeat(entry.rating)}</span>
+									<span class="text-muted-foreground/40" aria-hidden="true">
+										{'★'.repeat(5 - entry.rating)}
+									</span>
+								</p>
+							{/if}
+
+							<p class="flex-1 text-sm text-pretty">{entry.message}</p>
+
+							<p class="text-muted-foreground text-xs">
+								{entry.name ?? m.feedback_anonymous()}
+							</p>
+						</Card.Content>
+					</Card.Root>
+				</li>
+			{/each}
+		</ul>
 	</section>
 {/if}
 

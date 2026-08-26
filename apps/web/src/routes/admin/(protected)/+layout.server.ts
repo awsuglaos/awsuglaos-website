@@ -13,6 +13,8 @@ export interface Dashboard {
 		registrations: number;
 		checkedIn: number;
 		subscribers: number;
+		/** Site feedback waiting for a decision. Drives the sidebar badge. */
+		pendingFeedback: number;
 	};
 	events: {
 		id: string;

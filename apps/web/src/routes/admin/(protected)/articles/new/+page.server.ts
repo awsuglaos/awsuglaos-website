@@ -1,14 +1,19 @@
 import { adminApi } from '$lib/server/admin';
+import { formValues, toAdminFailure, translationPathMapper, zodFail } from '$lib/server/form';
 import { parseArticleForm } from '$lib/server/parse-admin-forms';
-import { articleInputSchema, isDomainError } from '@awsug/shared';
-import { fail, redirect } from '@sveltejs/kit';
+import { articleInputSchema } from '@awsug/shared';
+import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
 export const actions: Actions = {
 	default: async ({ request, cookies, fetch }) => {
-		const parsed = articleInputSchema.safeParse(parseArticleForm(await request.formData()));
+		const data = await request.formData();
+		const values = formValues(data);
+		const input = parseArticleForm(data);
+
+		const parsed = articleInputSchema.safeParse(input);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.issues.map((i) => i.message).join('. ') });
+			return zodFail(parsed.error, values, { mapPath: translationPathMapper(input) });
 		}
 
 		let id: string;
@@ -19,8 +24,7 @@ export const actions: Actions = {
 			);
 			id = created.id;
 		} catch (error) {
-			if (isDomainError(error)) return fail(400, { message: error.message });
-			throw error;
+			return toAdminFailure(error, values);
 		}
 
 		redirect(303, `/admin/articles/${id}`);

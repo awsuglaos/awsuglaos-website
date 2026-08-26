@@ -5,8 +5,8 @@ import type { PageServerLoad } from './$types';
 
 interface Registrant {
 	id: string;
-	fullName: string;
-	email: string;
+	fullName: string | null;
+	email: string | null;
 	phone: string | null;
 	organisation: string | null;
 	ticketCode: string;

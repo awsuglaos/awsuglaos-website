@@ -25,16 +25,16 @@
 			<Button href="/news/{data.article.slug}" target="_blank" variant="outline" size="sm">
 				<ExternalLink data-icon="inline-start" />
 
-<FormAlert {form} />
+				<FormAlert {form} />
 				View
 			</Button>
 		{/if}
 	{/snippet}
 </PageHeader>
 
-<form method="POST" action="?/save" class="mt-8">
-	<ArticleForm article={data.article} />
-</form>
+<div class="mt-8">
+	<ArticleForm article={data.article} result={form} action="?/save" />
+</div>
 
 <DangerZone
 	title="Delete article"

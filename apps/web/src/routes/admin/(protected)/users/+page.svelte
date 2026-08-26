@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { AdminFormState, fieldValue } from '$lib/admin-form.svelte';
+	import AdminField from '$lib/components/admin/admin-field.svelte';
 	import ConfirmSubmit from '$lib/components/admin/confirm-submit.svelte';
 	import PageHeader from '$lib/components/admin/page-header.svelte';
 	import Seo from '$lib/components/Seo.svelte';
@@ -9,6 +12,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Table from '$lib/components/ui/table';
 	import { formatDate } from '$lib/format';
 	import AlertCircle from '@lucide/svelte/icons/circle-alert';
@@ -20,6 +24,11 @@
 	let ok = $derived(form && 'message' in form && !('status' in form));
 
 	let adminCount = $derived(data.users.filter((u) => u.role === 'admin').length);
+
+	const formState = new AdminFormState();
+
+	const v = (name: string, fallback = '') => fieldValue(form, name, fallback);
+	let roleValue = $derived(v('role', 'editor'));
 </script>
 
 <Seo title="Users" noindex />
@@ -42,32 +51,46 @@
 	</Card.Header>
 
 	<Card.Content>
-		<form method="POST" action="?/invite">
+		<form
+			method="POST"
+			action="?/invite"
+			bind:this={formState.form}
+			use:enhance={formState.enhance}
+		>
 			<Field.FieldGroup>
 				<div class="grid gap-5 sm:grid-cols-3">
-					<Field.Field>
-						<Field.FieldLabel for="name">Name</Field.FieldLabel>
-						<Input id="name" name="name" required />
-					</Field.Field>
+					<AdminField result={form} name="name" label="Name" required>
+						{#snippet input({ props })}
+							<Input {...props} value={v('name')} />
+						{/snippet}
+					</AdminField>
 
-					<Field.Field>
-						<Field.FieldLabel for="email">Email address</Field.FieldLabel>
-						<Input id="email" name="email" type="email" required />
-					</Field.Field>
+					<AdminField result={form} name="email" label="Email address" required>
+						{#snippet input({ props })}
+							<Input {...props} type="email" value={v('email')} />
+						{/snippet}
+					</AdminField>
 
-					<Field.Field>
-						<Field.FieldLabel for="role">Role</Field.FieldLabel>
-						<select id="role" name="role" class="native-select">
-							<option value="editor" selected>Editor — news and speakers</option>
-							<option value="admin">Admin — everything</option>
-						</select>
-					</Field.Field>
+					<AdminField result={form} name="role" label="Role">
+						{#snippet input({ props })}
+							<select {...props} class="native-select">
+								<option value="editor" selected={roleValue !== 'admin'}>
+									Editor — news and speakers
+								</option>
+								<option value="admin" selected={roleValue === 'admin'}>Admin — everything</option>
+							</select>
+						{/snippet}
+					</AdminField>
 				</div>
 			</Field.FieldGroup>
 
-			<Button type="submit" class="mt-6">
-				<UserPlus data-icon="inline-start" />
-				Send invitation
+			<Button type="submit" class="mt-6" disabled={formState.submitting}>
+				{#if formState.submitting}
+					<Spinner data-icon="inline-start" />
+				{:else}
+					<UserPlus data-icon="inline-start" />
+				{/if}
+				{formState.submitting ? 'Sending…' : 'Send invitation'}
 			</Button>
 		</form>
 	</Card.Content>

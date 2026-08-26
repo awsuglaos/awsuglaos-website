@@ -1,12 +1,16 @@
 import { eventTranslations, events, type Event, type EventTranslation } from '@awsug/db';
 import {
 	buildEmbedUrl,
+	DEFAULT_FORM_BLOCKS,
+	isContent,
 	NotFoundError,
 	SlugTakenError,
 	type EventInput,
+	type FormDefinition,
 	type Locale,
 	type RegistrationState,
-	type RichTextDoc
+	type RichTextDoc,
+	type SetEventFormInput
 } from '@awsug/shared';
 import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { renderRichText } from '../content/render.js';
@@ -52,6 +56,29 @@ export interface EventView {
 	seatsRemaining: number | null;
 	/** True when this locale has no translation and the base locale is shown. */
 	translationFallback: boolean;
+}
+
+/**
+ * A form block on its way to a browser.
+ *
+ * `html` is the difference from the stored block: rich text content is
+ * rendered and sanitised *here*, server-side, exactly as `descriptionHtml` is.
+ * The page then injects a string it was handed rather than running a renderer
+ * over JSON that arrived from the network, which is the only version of this
+ * that is safe to put behind `{@html}`.
+ */
+export type PublicFormBlock = FormDefinition[number] & { html?: string };
+
+function toPublicForm(blocks: FormDefinition): PublicFormBlock[] {
+	return blocks.map((block) =>
+		isContent(block) && block.type === 'richText'
+			? // The source document is dropped once it has been rendered: the page
+				// only ever needs the sanitised HTML, and shipping the JSON alongside
+				// it would both bloat the payload and leave a raw document sitting
+				// there inviting someone to render it in the browser instead.
+				{ ...block, doc: null, html: renderRichText(block.doc) }
+			: block
+	);
 }
 
 type EventWithTranslations = Event & { translations: EventTranslation[] };
@@ -157,6 +184,8 @@ export interface EventDetailView extends EventView {
 	resources: EventResourceView[];
 	/** Empty until the event has ended. */
 	photos: EventPhotoView[];
+	/** The registration form, with rich text already rendered. */
+	form: PublicFormBlock[];
 }
 
 export async function getPublishedEventBySlug(
@@ -181,14 +210,16 @@ export async function getPublishedEventBySlug(
 	 * early by forgetting a condition. It also skips two queries for the
 	 * upcoming events that make up most of the traffic.
 	 */
-	if (!view.hasEnded) return { ...view, resources: [], photos: [] };
+	const form = toPublicForm(event.formSchema);
+
+	if (!view.hasEnded) return { ...view, resources: [], photos: [], form };
 
 	const [resources, photos] = await Promise.all([
 		listResources(ctx, event.id),
 		listPhotos(ctx, event.id)
 	]);
 
-	return { ...view, resources, photos };
+	return { ...view, resources, photos, form };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -237,7 +268,11 @@ export async function createEvent(
 					locationUrl: location.locationUrl,
 					locationLat: location.coordinates?.lat ?? null,
 					locationLng: location.coordinates?.lng ?? null,
-					coverImageUrl: row.coverImageUrl || null
+					coverImageUrl: row.coverImageUrl || null,
+					// Seeded rather than left empty, so a new event has the same
+					// registration form the site has always had and an organiser opts
+					// *into* changing it rather than having to build one first.
+					formSchema: DEFAULT_FORM_BLOCKS
 				})
 				.returning();
 		} catch (error) {
@@ -318,4 +353,41 @@ export async function recountRegistrations(ctx: AppContext, eventId: string): Pr
 
 	if (!row) throw new NotFoundError('Event');
 	return row.registeredCount;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Registration form                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The form is read and written on its own, not through `updateEvent`.
+ *
+ * Keeping it off the event form means saving a typo in the venue name cannot
+ * overwrite the questions, and vice versa — two editors can have both pages
+ * open without one silently discarding the other's work.
+ */
+export async function getFormSchema(ctx: AppContext, eventId: string): Promise<FormDefinition> {
+	const [row] = await ctx.db
+		.select({ formSchema: events.formSchema })
+		.from(events)
+		.where(eq(events.id, eventId))
+		.limit(1);
+
+	if (!row) throw new NotFoundError('Event');
+	return row.formSchema;
+}
+
+export async function setFormSchema(
+	ctx: AppContext,
+	eventId: string,
+	input: SetEventFormInput
+): Promise<FormDefinition> {
+	const [updated] = await ctx.db
+		.update(events)
+		.set({ formSchema: input.blocks, updatedAt: currentTime(ctx) })
+		.where(eq(events.id, eventId))
+		.returning({ formSchema: events.formSchema });
+
+	if (!updated) throw new NotFoundError('Event');
+	return updated.formSchema;
 }

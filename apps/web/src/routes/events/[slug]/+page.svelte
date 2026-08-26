@@ -2,19 +2,21 @@
 	import { enhance } from '$app/forms';
 	import { isInCity } from '$lib/map/projection.js';
 	import MapCanvas from '$lib/components/map/MapCanvas.svelte';
+	import RegistrationForm from '$lib/components/RegistrationForm.svelte';
+	import PhotoLightbox from '$lib/components/PhotoLightbox.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import { Alert, AlertDescription } from '$lib/components/ui/alert';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import * as Field from '$lib/components/ui/field';
-	import { Input } from '$lib/components/ui/input';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { formatEventRange, isoDate } from '$lib/format';
 	import * as m from '$lib/paraglide/messages';
 	import { localizeHref } from '$lib/paraglide/runtime';
+	import { SPONSOR_TILE } from '$lib/sponsor-tiles';
+	import { cn } from '$lib/utils';
 	import { richTextToPlainText } from '@awsug/shared';
 	import AlertCircle from '@lucide/svelte/icons/circle-alert';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -414,28 +416,32 @@
 						{#each sponsorsByTier as group (group.tier)}
 							<div
 								data-sponsor-tier={group.tier}
-								class="grid gap-x-6 gap-y-3 py-4 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,7rem)_minmax(0,1fr)] sm:items-center"
+								class="grid gap-x-6 gap-y-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] sm:items-center"
 							>
 								<h3 class="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
 									{group.tier}
 								</h3>
 								<ul class="flex list-none flex-wrap items-center gap-3 p-0">
 									{#each group.items as sponsor (sponsor.sponsorId)}
+										{@const size = SPONSOR_TILE[group.tier]}
 										<li
-											class="border-border bg-card lift flex h-16 items-center justify-center rounded-xl border px-5"
+											class={cn(
+												'border-border bg-card lift flex items-center justify-center rounded-xl border',
+												size.tile
+											)}
 										>
 											{#if sponsor.websiteUrl}
 												<a
 													href={sponsor.websiteUrl}
 													rel="noopener noreferrer sponsored"
 													target="_blank"
-													class="focus-visible:ring-ring rounded outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
+													class="focus-visible:ring-ring flex items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
 												>
 													<img
 														src={sponsor.logoUrl}
 														alt={sponsor.name}
 														loading="lazy"
-														class="h-8 w-auto max-w-32 object-contain"
+														class={cn('h-auto w-auto object-contain', size.logo)}
 													/>
 												</a>
 											{:else}
@@ -443,7 +449,7 @@
 													src={sponsor.logoUrl}
 													alt={sponsor.name}
 													loading="lazy"
-													class="h-8 w-auto max-w-32 object-contain"
+													class={cn('h-auto w-auto object-contain', size.logo)}
 												/>
 											{/if}
 										</li>
@@ -510,31 +516,7 @@
 				<section class="mt-14">
 					<h2 class="text-xl font-semibold tracking-tight">{m.event_photos()}</h2>
 
-					<ul class="mt-6 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-4">
-						{#each event.photos as photo (photo.id)}
-							<li>
-								<figure class="m-0">
-									<!--
-								A fixed aspect box rather than intrinsic dimensions: the sizes
-								are not known server-side, and without it the grid reflows as
-								each photo decodes.
-							-->
-									<img
-										src={photo.url}
-										alt={photo.caption ?? ''}
-										loading="lazy"
-										decoding="async"
-										class="border-border bg-muted aspect-4/3 w-full rounded-lg border object-cover"
-									/>
-									{#if photo.caption}
-										<figcaption class="text-muted-foreground mt-1.5 text-xs">
-											{photo.caption}
-										</figcaption>
-									{/if}
-								</figure>
-							</li>
-						{/each}
-					</ul>
+					<PhotoLightbox photos={event.photos} class="mt-6" />
 				</section>
 			{/if}
 
@@ -576,86 +558,16 @@
 									};
 								}}
 							>
-								<Field.FieldGroup>
-									<Field.Field data-invalid={form?.fieldErrors?.fullName ? true : undefined}>
-										<Field.FieldLabel for="fullName">{m.register_full_name()}</Field.FieldLabel>
-										<Input
-											id="fullName"
-											name="fullName"
-											required
-											autocomplete="name"
-											value={form?.values?.fullName ?? ''}
-											aria-invalid={form?.fieldErrors?.fullName ? 'true' : undefined}
-											aria-describedby={form?.fieldErrors?.fullName ? 'fullName-error' : undefined}
-										/>
-										{#if form?.fieldErrors?.fullName}
-											<Field.FieldError id="fullName-error">
-												{form.fieldErrors.fullName}
-											</Field.FieldError>
-										{/if}
-									</Field.Field>
-
-									<div class="grid gap-5 sm:grid-cols-2">
-										<Field.Field data-invalid={form?.fieldErrors?.email ? true : undefined}>
-											<Field.FieldLabel for="email">{m.register_email()}</Field.FieldLabel>
-											<Input
-												id="email"
-												name="email"
-												type="email"
-												required
-												autocomplete="email"
-												value={form?.values?.email ?? ''}
-												aria-invalid={form?.fieldErrors?.email ? 'true' : undefined}
-												aria-describedby={form?.fieldErrors?.email ? 'email-error' : undefined}
-											/>
-											{#if form?.fieldErrors?.email}
-												<Field.FieldError id="email-error"
-													>{form.fieldErrors.email}</Field.FieldError
-												>
-											{/if}
-										</Field.Field>
-
-										<Field.Field data-invalid={form?.fieldErrors?.phone ? true : undefined}>
-											<Field.FieldLabel for="phone">
-												{m.register_phone()}
-												<span class="text-muted-foreground font-normal">
-													({m.register_optional()})
-												</span>
-											</Field.FieldLabel>
-											<Input
-												id="phone"
-												name="phone"
-												type="tel"
-												autocomplete="tel"
-												inputmode="tel"
-												placeholder="020 XXXXXXXX"
-												value={form?.values?.phone ?? ''}
-												aria-invalid={form?.fieldErrors?.phone ? 'true' : undefined}
-												aria-describedby={form?.fieldErrors?.phone ? 'phone-error' : undefined}
-											/>
-											{#if form?.fieldErrors?.phone}
-												<Field.FieldError id="phone-error"
-													>{form.fieldErrors.phone}</Field.FieldError
-												>
-											{/if}
-										</Field.Field>
-									</div>
-
-									<Field.Field>
-										<Field.FieldLabel for="organisation">
-											{m.register_organisation()}
-											<span class="text-muted-foreground font-normal"
-												>({m.register_optional()})</span
-											>
-										</Field.FieldLabel>
-										<Input
-											id="organisation"
-											name="organisation"
-											autocomplete="organization"
-											value={form?.values?.organisation ?? ''}
-										/>
-									</Field.Field>
-								</Field.FieldGroup>
+								<!--
+									The questions belong to the event, not to this template. What is
+									asked, in what order, and what is required are all decided in the
+									backoffice form builder and rendered from the definition.
+								-->
+								<RegistrationForm
+									blocks={event.form}
+									errors={form?.fieldErrors ?? {}}
+									values={form?.values ?? {}}
+								/>
 
 								<!-- Honeypot -->
 								<div class="hidden" aria-hidden="true">

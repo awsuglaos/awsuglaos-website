@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { AdminFormState, fieldValue } from '$lib/admin-form.svelte';
+	import AdminField from '$lib/components/admin/admin-field.svelte';
 	import ConfirmSubmit from '$lib/components/admin/confirm-submit.svelte';
 	import ImageField from '$lib/components/admin/ImageField.svelte';
 	import PageHeader from '$lib/components/admin/page-header.svelte';
@@ -10,6 +13,7 @@
 	import * as Empty from '$lib/components/ui/empty';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Table from '$lib/components/ui/table';
 	import AlertCircle from '@lucide/svelte/icons/circle-alert';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
@@ -18,6 +22,16 @@
 
 	let { data, form } = $props();
 	let ok = $derived(form && 'message' in form && !('status' in form));
+
+	const formState = new AdminFormState();
+
+	/*
+	 * The add form sits above the table it feeds, so a rejection keeps whatever
+	 * was typed rather than clearing the row and asking for it all again.
+	 */
+	const v = (name: string, fallback: string | number = '') => fieldValue(form, name, fallback);
+
+	let tierValue = $derived(v('tier', 'community'));
 </script>
 
 <Seo title="Sponsors" noindex />
@@ -37,54 +51,69 @@
 	</Card.Header>
 
 	<Card.Content>
-		<form method="POST" action="?/create">
+		<form
+			method="POST"
+			action="?/create"
+			bind:this={formState.form}
+			use:enhance={formState.enhance}
+		>
 			<Field.FieldGroup>
 				<div class="grid gap-5 sm:grid-cols-2">
-					<Field.Field>
-						<Field.FieldLabel for="name">Name</Field.FieldLabel>
-						<Input id="name" name="name" required />
-					</Field.Field>
+					<AdminField result={form} name="name" label="Name" required>
+						{#snippet input({ props })}
+							<Input {...props} value={v('name')} />
+						{/snippet}
+					</AdminField>
 
-					<Field.Field>
-						<Field.FieldLabel for="tier">Tier</Field.FieldLabel>
-						<!--
-							Native <select>: this posts without JavaScript and matches the
-							other status pickers in the backoffice, which the e2e suite
-							drives with selectOption().
-						-->
-						<select id="tier" name="tier" class="native-select">
-							<option value="platinum">Platinum</option>
-							<option value="gold">Gold</option>
-							<option value="silver">Silver</option>
-							<option value="community" selected>Community</option>
-						</select>
-					</Field.Field>
+					<AdminField result={form} name="tier" label="Tier">
+						{#snippet input({ props })}
+							<!--
+								Native <select>: this posts without JavaScript and matches the
+								other status pickers in the backoffice, which the e2e suite
+								drives with selectOption().
+							-->
+							<select {...props} class="native-select">
+								<option value="platinum" selected={tierValue === 'platinum'}>Platinum</option>
+								<option value="gold" selected={tierValue === 'gold'}>Gold</option>
+								<option value="silver" selected={tierValue === 'silver'}>Silver</option>
+								<option value="community" selected={tierValue === 'community'}>Community</option>
+							</select>
+						{/snippet}
+					</AdminField>
 
 					<Field.Field>
 						<ImageField
 							name="logoUrl"
 							label="Logo"
 							required
+							value={v('logoUrl')}
 							help="A transparent PNG reads best on both light and dark backgrounds."
 						/>
 					</Field.Field>
 
-					<Field.Field>
-						<Field.FieldLabel for="websiteUrl">Website</Field.FieldLabel>
-						<Input id="websiteUrl" name="websiteUrl" type="url" />
-					</Field.Field>
+					<AdminField result={form} name="websiteUrl" label="Website">
+						{#snippet input({ props })}
+							<Input {...props} type="url" value={v('websiteUrl')} />
+						{/snippet}
+					</AdminField>
 
-					<Field.Field>
-						<Field.FieldLabel for="sortOrder">Sort order</Field.FieldLabel>
-						<Input id="sortOrder" name="sortOrder" type="number" min="0" value="0" />
-						<Field.FieldDescription>
-							Lower numbers appear first within a tier.
-						</Field.FieldDescription>
-					</Field.Field>
+					<AdminField
+						result={form}
+						name="sortOrder"
+						label="Sort order"
+						description="Lower numbers appear first within a tier."
+					>
+						{#snippet input({ props })}
+							<Input {...props} type="number" min="0" value={v('sortOrder', 0)} />
+						{/snippet}
+					</AdminField>
 				</div>
 			</Field.FieldGroup>
 
-			<Button type="submit" class="mt-6">Add sponsor</Button>
+			<Button type="submit" class="mt-6" disabled={formState.submitting}>
+				{#if formState.submitting}<Spinner data-icon="inline-start" />{/if}
+				{formState.submitting ? 'Adding…' : 'Add sponsor'}
+			</Button>
 		</form>
 	</Card.Content>
 </Card.Root>

@@ -175,7 +175,7 @@ describe('feedback', () => {
 		const { registration } = await registrationService.registerForEvent(
 			registerCtx,
 			'past-event',
-			{ fullName: 'Attendee One', email: 'attendee@example.la' },
+			{ answers: { fullName: 'Attendee One', email: 'attendee@example.la' } },
 			'en'
 		);
 
@@ -206,7 +206,7 @@ describe('feedback', () => {
 		const { registration } = await registrationService.registerForEvent(
 			ctx,
 			'test-event',
-			{ fullName: 'Early Bird', email: 'early@example.la' },
+			{ answers: { fullName: 'Early Bird', email: 'early@example.la' } },
 			'en'
 		);
 
@@ -396,10 +396,7 @@ describe('user management', () => {
 			name: 'Leaving',
 			role: 'editor'
 		});
-		const [acting] = await ctx.db
-			.select()
-			.from(users)
-			.where(eq(users.email, 'admin@example.la'));
+		const [acting] = await ctx.db.select().from(users).where(eq(users.email, 'admin@example.la'));
 
 		await userService.removeUser(ctx, target.id, acting!.id);
 

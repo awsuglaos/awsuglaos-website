@@ -6,7 +6,8 @@ import type { Actions } from './$types';
 
 interface CheckInResponse {
 	ticketCode: string;
-	fullName: string;
+	/** Null when the event's form has no question tagged as the name. */
+	fullName: string | null;
 	checkedInAt: string;
 	eventSlug: string;
 }

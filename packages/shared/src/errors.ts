@@ -40,6 +40,18 @@ export class DomainError extends Error {
 	}
 }
 
+/**
+ * A submission that failed the schema built for it.
+ *
+ * `details.fieldErrors` is keyed the same way the form's inputs are named, so
+ * a caller can mark the offending question without re-deriving anything.
+ */
+export class ValidationFailedError extends DomainError {
+	constructor(fieldErrors: Record<string, string>, message = 'Check the answers and try again') {
+		super('validation_failed', message, 400, { fieldErrors });
+	}
+}
+
 export class NotFoundError extends DomainError {
 	constructor(what = 'Resource') {
 		super('not_found', `${what} not found`, 404);

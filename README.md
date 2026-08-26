@@ -27,12 +27,42 @@ ready to deploy. See [DEPLOYMENT.md](DEPLOYMENT.md) for the runbook.
 ### Features
 
 Public: landing page, news, event listings and detail with an embedded venue
-map, speaker line-up, per-event sponsors, registration with a QR ticket, and a
-post-event feedback form. All bilingual.
+map, speaker line-up, per-event sponsors, registration through a form the
+organiser builds, a QR ticket, a downloadable photo gallery, a post-event
+feedback form, and a public feedback page whose messages appear only once an
+organiser approves them. All bilingual.
 
 Backoffice: dashboard, events, a reusable speaker directory, per-event line-up
-and sponsor pickers, news with a rich text editor and image upload, sponsors,
-QR check-in, feedback with averages, and user management.
+and sponsor pickers, a drag-free registration form builder with per-event
+answer analytics, news with a rich text editor and image upload, sponsors,
+QR check-in, feedback with averages, a moderation queue for public feedback,
+and user management.
+
+#### The registration form builder
+
+Each event owns its registration form, stored as an ordered list of blocks in
+`events.form_schema` and validated by `packages/shared/src/schemas/form.ts`.
+Questions come in twelve types (short text, paragraph, radio, checkboxes,
+dropdown, 1–5 rating, number, date, yes/no, email, phone, link) alongside
+content blocks that are shown rather than asked — a heading, a rich text block,
+an image and a divider.
+
+The form is genuinely free-form: name and email are ordinary questions and can
+be renamed, reordered or deleted. Because tickets, the confirmation email, the
+one-registration-per-person rule and the check-in list all need to know which
+answer is which, a question can carry a **role** (`name`, `email`, `phone`,
+`organisation`); the submitted value is mirrored into the matching
+`registrations` column, and everything downstream keeps reading one column.
+
+Deleting the email question is allowed, and the builder says what it costs:
+that event stops sending confirmation emails and stops blocking duplicate
+sign-ups. Nothing breaks — `registrations.email` is simply null, and the
+`(event_id, lower(email))` unique index lets NULLs through.
+
+Answers are keyed by a question's stable id, so renaming or reordering a
+question keeps every answer already collected attached to it. Deleting one
+keeps the answers too: they surface on the insights page under "answers to
+removed questions" and in a trailing column of the CSV export.
 
 ---
 

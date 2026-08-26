@@ -16,7 +16,8 @@ export {
 	eventSponsors,
 	eventFeedback,
 	eventResources,
-	eventPhotos
+	eventPhotos,
+	siteFeedback
 } from './schema.js';
 export type {
 	User,
@@ -38,5 +39,7 @@ export type {
 	EventResource,
 	NewEventResource,
 	EventPhoto,
-	NewEventPhoto
+	NewEventPhoto,
+	SiteFeedbackRow,
+	NewSiteFeedback
 } from './schema.js';

@@ -1,6 +1,6 @@
 import { adminApi } from '$lib/server/admin';
+import { field, formValues, toAdminFailure, zodFail } from '$lib/server/form';
 import { parseSponsorForm } from '$lib/server/parse-admin-forms';
-import { field } from '$lib/server/form';
 import { isDomainError, sponsorInputSchema } from '@awsug/shared';
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -20,16 +20,16 @@ export const load: PageServerLoad = async ({ cookies, fetch }) => ({
 
 export const actions: Actions = {
 	create: async ({ request, cookies, fetch }) => {
-		const parsed = sponsorInputSchema.safeParse(parseSponsorForm(await request.formData()));
-		if (!parsed.success) {
-			return fail(400, { message: parsed.error.issues.map((i) => i.message).join('. ') });
-		}
+		const data = await request.formData();
+		const values = formValues(data);
+
+		const parsed = sponsorInputSchema.safeParse(parseSponsorForm(data));
+		if (!parsed.success) return zodFail(parsed.error, values);
 
 		try {
 			await adminApi(cookies, fetch).post('/admin/sponsors', parsed.data);
 		} catch (error) {
-			if (isDomainError(error)) return fail(400, { message: error.message });
-			throw error;
+			return toAdminFailure(error, values);
 		}
 
 		return { message: 'Sponsor added.' };

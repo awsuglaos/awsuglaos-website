@@ -107,7 +107,8 @@
 		<Alert class="border-primary/40 bg-primary/5 mt-6">
 			<CircleCheck class="text-primary size-4" />
 			<AlertDescription>
-				<strong class="text-foreground">{form.result.fullName}</strong> checked in.
+				<strong class="text-foreground">{form.result.fullName ?? form.result.ticketCode}</strong>
+				checked in.
 				<span class="text-muted-foreground block font-mono text-xs">{form.result.ticketCode}</span>
 			</AlertDescription>
 		</Alert>

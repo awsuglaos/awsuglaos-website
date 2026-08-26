@@ -1,15 +1,19 @@
-import { parseEventForm } from '$lib/server/parse-admin-forms';
 import { adminApi } from '$lib/server/admin';
+import { formValues, toAdminFailure, translationPathMapper, zodFail } from '$lib/server/form';
+import { parseEventForm } from '$lib/server/parse-admin-forms';
 import { eventInputSchema } from '@awsug/shared';
-import { fail, redirect } from '@sveltejs/kit';
-import { isDomainError } from '@awsug/shared';
+import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
 export const actions: Actions = {
 	default: async ({ request, cookies, fetch }) => {
-		const parsed = eventInputSchema.safeParse(parseEventForm(await request.formData()));
+		const data = await request.formData();
+		const values = formValues(data);
+		const input = parseEventForm(data);
+
+		const parsed = eventInputSchema.safeParse(input);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.issues.map((i) => i.message).join('. ') });
+			return zodFail(parsed.error, values, { mapPath: translationPathMapper(input) });
 		}
 
 		let id: string;
@@ -20,8 +24,7 @@ export const actions: Actions = {
 			);
 			id = created.id;
 		} catch (error) {
-			if (isDomainError(error)) return fail(error.status === 404 ? 404 : 400, { message: error.message });
-			throw error;
+			return toAdminFailure(error, values);
 		}
 
 		redirect(303, `/admin/events/${id}`);

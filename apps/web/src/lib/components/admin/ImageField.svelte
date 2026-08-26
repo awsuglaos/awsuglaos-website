@@ -14,9 +14,23 @@
 		required?: boolean;
 		/** Rounded preview, for avatars and speaker photos. */
 		circular?: boolean;
+		/**
+		 * Called whenever the URL changes, by upload, paste or clear. The form
+		 * builder needs the value as state rather than as a posted field, since it
+		 * submits every block in one JSON payload.
+		 */
+		onChange?: (url: string) => void;
 	}
 
-	let { name, label, value = null, help, required = false, circular = false }: Props = $props();
+	let {
+		name,
+		label,
+		value = null,
+		help,
+		required = false,
+		circular = false,
+		onChange
+	}: Props = $props();
 
 	let url = $state(value ?? '');
 	let uploading = $state(false);
@@ -31,6 +45,7 @@
 		uploading = true;
 		try {
 			url = await uploadImage(file);
+			onChange?.(url);
 		} catch (error) {
 			uploadError = error instanceof Error ? error.message : 'Upload failed';
 		} finally {
@@ -66,6 +81,7 @@
 			inputmode="url"
 			{required}
 			bind:value={url}
+			oninput={() => onChange?.(url)}
 			placeholder="Upload, or paste an image URL"
 			class="flex-1"
 		/>
@@ -95,9 +111,19 @@
 			<img
 				src={url}
 				alt=""
-				class={circular ? 'size-16 rounded-full object-cover' : 'h-16 w-auto rounded object-contain'}
+				class={circular
+					? 'size-16 rounded-full object-cover'
+					: 'h-16 w-auto rounded object-contain'}
 			/>
-			<Button type="button" variant="ghost" size="sm" onclick={() => (url = '')}>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				onclick={() => {
+					url = '';
+					onChange?.('');
+				}}
+			>
 				<X class="size-4" />
 				Remove
 			</Button>

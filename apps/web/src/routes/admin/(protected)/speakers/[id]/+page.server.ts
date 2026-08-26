@@ -1,4 +1,5 @@
 import { adminApi } from '$lib/server/admin';
+import { formValues, toAdminFailure, translationPathMapper, zodFail } from '$lib/server/form';
 import { parseSpeakerForm } from '$lib/server/parse-admin-forms';
 import { isDomainError, speakerInputSchema } from '@awsug/shared';
 import { error, fail, redirect } from '@sveltejs/kit';
@@ -35,16 +36,19 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
 
 export const actions: Actions = {
 	save: async ({ request, params, cookies, fetch }) => {
-		const parsed = speakerInputSchema.safeParse(parseSpeakerForm(await request.formData()));
+		const data = await request.formData();
+		const values = formValues(data);
+		const input = parseSpeakerForm(data);
+
+		const parsed = speakerInputSchema.safeParse(input);
 		if (!parsed.success) {
-			return fail(400, { message: parsed.error.issues.map((i) => i.message).join('. ') });
+			return zodFail(parsed.error, values, { mapPath: translationPathMapper(input) });
 		}
 
 		try {
 			await adminApi(cookies, fetch).put(`/admin/speakers/${params.id}`, parsed.data);
 		} catch (error_) {
-			if (isDomainError(error_)) return fail(400, { message: error_.message });
-			throw error_;
+			return toAdminFailure(error_, values);
 		}
 
 		return { message: 'Saved.' };

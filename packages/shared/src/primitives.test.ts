@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emailSchema, imageUrlSchema, phoneSchema, slugSchema } from './primitives.js';
 import { generateTicketCode, generateUnsubscribeToken } from './ticket.js';
-import { registrationInputSchema } from './schemas/registration.js';
+import { buildAnswersSchema, DEFAULT_FORM_BLOCKS } from './schemas/form.js';
 
 describe('phoneSchema', () => {
 	it('normalises a Lao domestic number to E.164', () => {
@@ -77,28 +77,38 @@ describe('imageUrlSchema', () => {
 	});
 });
 
-describe('registrationInputSchema', () => {
+/*
+ * The default form is what every event starts with and what every event that
+ * predates the builder was backfilled to, so it is worth holding to the same
+ * guarantees the old fixed schema gave.
+ */
+describe('the default registration form', () => {
+	const schema = buildAnswersSchema(DEFAULT_FORM_BLOCKS);
+
 	it('accepts a minimal registration', () => {
-		const result = registrationInputSchema.parse({
+		const result = schema.parse({
 			fullName: 'Somchai Vongphachanh',
 			email: 'somchai@example.la'
 		});
-		expect(result.phone).toBeUndefined();
+
+		expect(result.phone).toBeNull();
+		expect(result.organisation).toBeNull();
 	});
 
-	it('rejects a filled honeypot', () => {
-		const result = registrationInputSchema.safeParse({
-			fullName: 'Bot',
-			email: 'bot@example.la',
-			website: 'http://spam.example'
+	it('normalises the email and the phone number on the way in', () => {
+		const result = schema.parse({
+			fullName: 'Somchai Vongphachanh',
+			email: '  Somchai@Example.LA ',
+			phone: '020 55512345'
 		});
-		expect(result.success).toBe(false);
+
+		expect(result.email).toBe('somchai@example.la');
+		expect(result.phone).toBe('+8562055512345');
 	});
 
-	it('requires a real name', () => {
-		expect(
-			registrationInputSchema.safeParse({ fullName: 'A', email: 'a@example.la' }).success
-		).toBe(false);
+	it('requires a name and an email address', () => {
+		expect(schema.safeParse({ email: 'a@example.la' }).success).toBe(false);
+		expect(schema.safeParse({ fullName: 'Somchai' }).success).toBe(false);
 	});
 });
 

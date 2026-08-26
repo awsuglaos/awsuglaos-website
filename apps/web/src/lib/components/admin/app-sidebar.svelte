@@ -7,6 +7,7 @@
 	import Handshake from '@lucide/svelte/icons/handshake';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import MessageSquare from '@lucide/svelte/icons/message-square';
 	import Mic from '@lucide/svelte/icons/mic';
 	import Newspaper from '@lucide/svelte/icons/newspaper';
 	import QrCode from '@lucide/svelte/icons/qr-code';
@@ -33,10 +34,18 @@
 			label: 'Operations',
 			items: [
 				{ href: '/admin/checkin', label: 'Check-in', icon: QrCode, exact: false },
+				{ href: '/admin/feedback', label: 'Feedback', icon: MessageSquare, exact: false },
 				{ href: '/admin/users', label: 'Users', icon: Users, exact: false }
 			]
 		}
 	];
+
+	/*
+	 * How many messages are waiting for a decision. It rides along on the
+	 * dashboard payload the protected layout already loads, so the badge costs no
+	 * extra request — and a queue nobody can see is a queue nobody empties.
+	 */
+	let pendingFeedback = $derived(page.data.dashboard?.totals?.pendingFeedback ?? 0);
 
 	function isActive(item: { href: string; exact: boolean }): boolean {
 		return item.exact ? page.url.pathname === item.href : page.url.pathname.startsWith(item.href);
@@ -83,6 +92,10 @@
 										</a>
 									{/snippet}
 								</Sidebar.MenuButton>
+
+								{#if item.href === '/admin/feedback' && pendingFeedback > 0}
+									<Sidebar.MenuBadge>{pendingFeedback}</Sidebar.MenuBadge>
+								{/if}
 							</Sidebar.MenuItem>
 						{/each}
 					</Sidebar.Menu>
@@ -113,7 +126,16 @@
 				<form method="POST" action="/admin/logout" class="w-full">
 					<Sidebar.MenuButton tooltipContent="Sign out">
 						{#snippet child({ props })}
-							<button type="submit" {...props}>
+							<!--
+								`type="submit"` comes *after* the spread, and that order is the
+								whole button. `tooltipContent` makes this render through bits-ui's
+								Tooltip.Trigger, which merges `{ type: "button" }` last into the
+								props it hands down — so spreading afterwards turns the submit
+								button into an inert one and sign-out silently does nothing. The
+								same trap as the one documented in confirm-submit.svelte, in the
+								opposite direction.
+							-->
+							<button {...props} type="submit">
 								<LogOut />
 								<span>Sign out</span>
 							</button>

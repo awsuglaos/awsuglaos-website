@@ -16,6 +16,6 @@
 
 <FormAlert {form} />
 
-<form method="POST" class="mt-8">
-	<SpeakerForm submitLabel="Create speaker" />
-</form>
+<div class="mt-8">
+	<SpeakerForm result={form} submitLabel="Create speaker" />
+</div>

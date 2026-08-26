@@ -25,7 +25,15 @@
 		</span>
 		<h1 class="mt-5 text-2xl font-bold tracking-tight">{m.register_success_title()}</h1>
 		<p class="text-muted-foreground mt-2 text-sm text-pretty">
-			{m.register_success_body({ email: data.registration.email })}
+			<!--
+				An event whose form has no email question issues a ticket with nowhere
+				to send it. Saying "we have emailed your ticket to " with nothing after
+				it would be worse than saying nothing, so the page tells the truth
+				instead: this is the ticket, keep it.
+			-->
+			{data.registration.email
+				? m.register_success_body({ email: data.registration.email })
+				: m.register_success_body_no_email()}
 		</p>
 	</div>
 
@@ -95,7 +103,7 @@
 				</p>
 			</div>
 
-			<p class="text-sm font-medium">{data.registration.fullName}</p>
+			<p class="text-sm font-medium">{data.registration.fullName ?? m.ticket_no_name()}</p>
 
 			{#if data.registration.checkedInAt}
 				<Badge variant="secondary">{m.ticket_checked_in()}</Badge>
@@ -110,9 +118,7 @@
 			<p class="text-sm font-medium">{m.feedback_title()}</p>
 			<p class="text-muted-foreground mt-1 text-sm text-pretty">{m.feedback_intro()}</p>
 			<Button
-				href={localizeHref(
-					`/events/${data.event.slug}/feedback/${data.registration.ticketCode}`
-				)}
+				href={localizeHref(`/events/${data.event.slug}/feedback/${data.registration.ticketCode}`)}
 				class="mt-4"
 			>
 				{m.ticket_feedback_cta()}

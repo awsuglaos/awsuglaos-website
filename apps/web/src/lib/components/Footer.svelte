@@ -7,6 +7,7 @@
 	const links = $derived([
 		{ href: localizeHref('/events'), label: m.nav_events(), external: false },
 		{ href: localizeHref('/news'), label: m.nav_news(), external: false },
+		{ href: localizeHref('/feedback'), label: m.nav_feedback(), external: false },
 		{ href: 'https://github.com/awsuglaos', label: m.footer_source(), external: true }
 	]);
 </script>
@@ -35,9 +36,7 @@
 				condition, not a courtesy, so it lives in the footer where it is present on
 				every page that can show the map. Do not remove it.
 			-->
-			<p
-				class="text-muted-foreground/70 font-mono text-[0.6875rem] tracking-[0.14em] uppercase"
-			>
+			<p class="text-muted-foreground/70 font-mono text-[0.6875rem] tracking-[0.14em] uppercase">
 				<a
 					href="https://www.openstreetmap.org/copyright"
 					rel="noopener noreferrer license"

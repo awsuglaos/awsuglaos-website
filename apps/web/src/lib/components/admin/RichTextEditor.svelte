@@ -20,14 +20,21 @@
 	import { uploadImage } from '$lib/upload';
 
 	interface Props {
-		/** Form field the JSON document is submitted under. */
-		name: string;
+		/**
+		 * Form field the JSON document is submitted under. Omit it when the
+		 * document is not part of a normal form post — the form builder keeps its
+		 * blocks in one JSON payload and takes the document through `onChange`
+		 * instead, and a stray hidden input would just add noise to the body.
+		 */
+		name?: string;
 		value?: RichTextDoc | null;
 		label?: string;
 		describedBy?: string;
+		/** Called on every edit, with the document as it now stands. */
+		onChange?: (doc: RichTextDoc) => void;
 	}
 
-	let { name, value = null, label, describedBy }: Props = $props();
+	let { name, value = null, label, describedBy, onChange }: Props = $props();
 
 	let element = $state<HTMLDivElement | null>(null);
 	let editor = $state<Editor | null>(null);
@@ -58,7 +65,9 @@
 			},
 			onTransaction: ({ editor: current }: { editor: Editor }) => {
 				version += 1;
-				serialized = JSON.stringify(current.getJSON());
+				const doc = current.getJSON() as RichTextDoc;
+				serialized = JSON.stringify(doc);
+				onChange?.(doc);
 			}
 		});
 
@@ -122,16 +131,62 @@
 	}
 
 	const toolbar = $derived([
-		{ icon: Bold, label: 'Bold', run: () => editor?.chain().focus().toggleBold().run(), active: isActive('bold') },
-		{ icon: Italic, label: 'Italic', run: () => editor?.chain().focus().toggleItalic().run(), active: isActive('italic') },
-		{ icon: Code, label: 'Code', run: () => editor?.chain().focus().toggleCode().run(), active: isActive('code') },
-		{ icon: Heading2, label: 'Heading 2', run: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(), active: isActive('heading', { level: 2 }) },
-		{ icon: Heading3, label: 'Heading 3', run: () => editor?.chain().focus().toggleHeading({ level: 3 }).run(), active: isActive('heading', { level: 3 }) },
-		{ icon: List, label: 'Bullet list', run: () => editor?.chain().focus().toggleBulletList().run(), active: isActive('bulletList') },
-		{ icon: ListOrdered, label: 'Numbered list', run: () => editor?.chain().focus().toggleOrderedList().run(), active: isActive('orderedList') },
-		{ icon: Quote, label: 'Quote', run: () => editor?.chain().focus().toggleBlockquote().run(), active: isActive('blockquote') },
+		{
+			icon: Bold,
+			label: 'Bold',
+			run: () => editor?.chain().focus().toggleBold().run(),
+			active: isActive('bold')
+		},
+		{
+			icon: Italic,
+			label: 'Italic',
+			run: () => editor?.chain().focus().toggleItalic().run(),
+			active: isActive('italic')
+		},
+		{
+			icon: Code,
+			label: 'Code',
+			run: () => editor?.chain().focus().toggleCode().run(),
+			active: isActive('code')
+		},
+		{
+			icon: Heading2,
+			label: 'Heading 2',
+			run: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(),
+			active: isActive('heading', { level: 2 })
+		},
+		{
+			icon: Heading3,
+			label: 'Heading 3',
+			run: () => editor?.chain().focus().toggleHeading({ level: 3 }).run(),
+			active: isActive('heading', { level: 3 })
+		},
+		{
+			icon: List,
+			label: 'Bullet list',
+			run: () => editor?.chain().focus().toggleBulletList().run(),
+			active: isActive('bulletList')
+		},
+		{
+			icon: ListOrdered,
+			label: 'Numbered list',
+			run: () => editor?.chain().focus().toggleOrderedList().run(),
+			active: isActive('orderedList')
+		},
+		{
+			icon: Quote,
+			label: 'Quote',
+			run: () => editor?.chain().focus().toggleBlockquote().run(),
+			active: isActive('blockquote')
+		},
 		{ icon: Link2, label: 'Link', run: setLink, active: isActive('link') },
-		{ icon: TableIcon, label: 'Insert table', run: () => editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(), active: false }
+		{
+			icon: TableIcon,
+			label: 'Insert table',
+			run: () =>
+				editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(),
+			active: false
+		}
 	]);
 </script>
 
@@ -206,7 +261,9 @@
 	The document travels as JSON in a hidden field, so the form still posts
 	normally and the server validates the same shape it stores.
 -->
-<input type="hidden" {name} value={serialized} />
+{#if name}
+	<input type="hidden" {name} value={serialized} />
+{/if}
 
 <style>
 	:global(.ProseMirror table) {

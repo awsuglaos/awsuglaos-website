@@ -46,6 +46,7 @@ export async function truncateAll(): Promise<void> {
 			articles,
 			sponsors,
 			newsletter_subs,
+			site_feedback,
 			users
 		RESTART IDENTITY CASCADE`
 	);
@@ -90,5 +91,21 @@ export function futureEvent(overrides: Record<string, unknown> = {}) {
 			}
 		],
 		...overrides
+	};
+}
+
+/**
+ * A submission to the default registration form.
+ *
+ * The block ids come from DEFAULT_FORM_BLOCKS, which is what `createEvent`
+ * seeds every new event with — so this is what a real sign-up posts.
+ */
+export function defaultAnswers(overrides: Record<string, unknown> = {}) {
+	return {
+		answers: {
+			fullName: 'Attendee One',
+			email: 'attendee1@example.la',
+			...overrides
+		}
 	};
 }
