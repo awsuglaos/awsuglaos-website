@@ -169,12 +169,30 @@ wrong.
 
 #### Option A — CloudShell (recommended)
 
-Open **CloudShell** (the `>_` icon in the console top bar) and paste this whole
-block. It is safe to re-run: it updates rather than duplicates.
+**First, get your repository's OIDC subject prefix.** Run this wherever you have
+the `gh` CLI (your own machine, not CloudShell):
 
 ```bash
+gh api /repos/awsuglaos/awsuglaos-website/actions/oidc/customization/sub \
+  --jq .sub_claim_prefix
+```
+
+It prints something like `repo:awsuglaos@315628610/awsuglaos-website@1330456491`.
+
+> **Those `@number` parts are not decoration.** Every repository created after
+> **15 July 2026** uses GitHub's immutable subject claim, which embeds the
+> numeric org and repo IDs so a recycled name cannot mint a matching token. A
+> trust policy written in the older `repo:org/repo:...` form matches nothing and
+> fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. Never
+> hand-write this prefix — read it from the command above.
+
+Then open **CloudShell** (the `>_` icon in the console top bar), paste your
+prefix into the first line, and run the block. It is safe to re-run: it updates
+rather than duplicates.
+
+```bash
+SUB_PREFIX='paste-the-prefix-from-above'
 ROLE_NAME=github-actions-awsug-lao-deploy
-REPO=awsuglaos/awsuglaos-website
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 cat > /tmp/trust.json <<JSON
@@ -191,8 +209,8 @@ cat > /tmp/trust.json <<JSON
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub": [
-            "repo:${REPO}:environment:staging",
-            "repo:${REPO}:environment:production"
+            "${SUB_PREFIX}:environment:staging",
+            "${SUB_PREFIX}:environment:production"
           ]
         }
       }
@@ -233,7 +251,10 @@ contains `:role/`.
 3. Permissions: attach **`AdministratorAccess`**.
 4. Name it **`github-actions-awsug-lao-deploy`** and create it.
 5. Open the new role → **Trust relationships** → **Edit trust policy** and
-   replace the whole document with this, substituting your 12-digit account ID:
+   replace the whole document with this, making **two** substitutions: your
+   12-digit account ID, and `SUB_PREFIX` (both occurrences) with the value from
+   `gh api /repos/OWNER/REPO/actions/oidc/customization/sub --jq .sub_claim_prefix`
+   — see the warning in Option A about why you cannot type that prefix by hand:
 
 ```json
 {
@@ -249,8 +270,8 @@ contains `:role/`.
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub": [
-            "repo:awsuglaos/awsuglaos-website:environment:staging",
-            "repo:awsuglaos/awsuglaos-website:environment:production"
+            "SUB_PREFIX:environment:staging",
+            "SUB_PREFIX:environment:production"
           ]
         }
       }
@@ -805,9 +826,27 @@ Note that the secret shows in the log as `***` whether it is right or wrong —
 masking only means it is non-empty, never that it is correct.
 
 **`Not authorized to perform sts:AssumeRoleWithWebIdentity`**
-The trust policy `sub` does not match the run. Check for a typo in the
-owner/repo string, and confirm the deploy job is running under an environment
-named exactly `staging` or `production`.
+The ARN is fine — STS found the role — and its trust policy refused the request.
+Almost always the `sub` condition does not match the token.
+
+The workflow prints the answer. Open the **Show the OIDC subject claim** step in
+the failed run, take the `sub:` line, and compare it character by character with
+the `token.actions.githubusercontent.com:sub` values in the role's trust policy.
+They must be identical.
+
+The usual mismatch is the **immutable subject claim**. Repositories created
+after 15 July 2026 present a subject like
+
+```
+repo:myorg@315628610/myrepo@1330456491:environment:staging
+```
+
+while older guidance (and most blog posts) writes it as
+`repo:myorg/myrepo:environment:staging`. The numeric org and repo IDs are
+required, and no amount of correct-looking org/repo naming substitutes for them.
+
+Also confirm the deploy job runs under an environment named exactly `staging` or
+`production` — the `:environment:` segment comes from that.
 
 **`No "build" script found within package.json`**
 SST is looking at the wrong directory. `path: 'apps/web'` must be correct
