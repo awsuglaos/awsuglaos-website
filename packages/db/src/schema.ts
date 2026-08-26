@@ -1,4 +1,14 @@
-import type { RichTextDoc } from '@awsug/shared';
+import {
+	LOCALES,
+	publishStatusSchema,
+	sponsorTierSchema,
+	userRoleSchema,
+	type Locale,
+	type PublishStatus,
+	type RichTextDoc,
+	type SponsorTier,
+	type UserRole
+} from '@awsug/shared';
 import { relations, sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -7,7 +17,6 @@ import {
 	index,
 	integer,
 	jsonb,
-	pgEnum,
 	pgTable,
 	smallint,
 	text,
@@ -21,15 +30,24 @@ import {
 /* Enums                                                                      */
 /* -------------------------------------------------------------------------- */
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'editor']);
-export const publishStatusEnum = pgEnum('publish_status', ['draft', 'published']);
-export const localeEnum = pgEnum('locale', ['lo', 'en']);
-export const sponsorTierEnum = pgEnum('sponsor_tier', [
-	'platinum',
-	'gold',
-	'silver',
-	'community'
-]);
+/*
+ * These were Postgres enum types. They are plain text with a CHECK constraint
+ * instead, because Aurora is reached over the RDS Data API and the Data API
+ * sends every string parameter as `text` — Drizzle maps only date, decimal,
+ * json, time, timestamp and uuid to an AWS type hint, and no enum hint exists
+ * to map to. So `where status = 'published'` fails on Aurora with
+ *
+ *   operator does not exist: publish_status = text
+ *
+ * while working perfectly against local Postgres, which infers the type over
+ * the extended protocol. No test running on the local driver can catch that.
+ * `text = text` behaves identically on both.
+ *
+ * The permitted values come from the Zod schemas rather than being retyped
+ * here, so the database constraint and the application validation cannot drift.
+ */
+const oneOf = (column: string, values: readonly string[]) =>
+	sql.raw(`"${column}" in (${values.map((value) => `'${value}'`).join(', ')})`);
 
 const timestamps = {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -45,16 +63,20 @@ const timestamps = {
  * application-side profile. `cognitoSub` stays null until the user first signs
  * in, which lets an admin pre-create an account by email address.
  */
-export const users = pgTable('users', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	cognitoSub: varchar('cognito_sub', { length: 64 }).unique(),
-	email: varchar('email', { length: 254 }).notNull().unique(),
-	name: varchar('name', { length: 160 }).notNull(),
-	/** Uploaded through the same S3 path as every other image. */
-	avatarUrl: text('avatar_url'),
-	role: userRoleEnum('role').notNull().default('editor'),
-	...timestamps
-});
+export const users = pgTable(
+	'users',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		cognitoSub: varchar('cognito_sub', { length: 64 }).unique(),
+		email: varchar('email', { length: 254 }).notNull().unique(),
+		name: varchar('name', { length: 160 }).notNull(),
+		/** Uploaded through the same S3 path as every other image. */
+		avatarUrl: text('avatar_url'),
+		role: text('role').$type<UserRole>().notNull().default('editor'),
+		...timestamps
+	},
+	() => [check('users_role_valid', oneOf('role', userRoleSchema.options))]
+);
 
 /* -------------------------------------------------------------------------- */
 /* Articles                                                                   */
@@ -69,16 +91,20 @@ export const users = pgTable('users', {
  * The slug stays on the parent and stays ASCII: one shareable URL per article,
  * not one per language.
  */
-export const articles = pgTable('articles', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	slug: varchar('slug', { length: 120 }).notNull().unique(),
-	coverImageUrl: text('cover_image_url'),
-	category: varchar('category', { length: 60 }),
-	status: publishStatusEnum('status').notNull().default('draft'),
-	publishedAt: timestamp('published_at', { withTimezone: true }),
-	authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
-	...timestamps
-});
+export const articles = pgTable(
+	'articles',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		slug: varchar('slug', { length: 120 }).notNull().unique(),
+		coverImageUrl: text('cover_image_url'),
+		category: varchar('category', { length: 60 }),
+		status: text('status').$type<PublishStatus>().notNull().default('draft'),
+		publishedAt: timestamp('published_at', { withTimezone: true }),
+		authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+		...timestamps
+	},
+	() => [check('articles_status_valid', oneOf('status', publishStatusSchema.options))]
+);
 
 export const articleTranslations = pgTable(
 	'article_translations',
@@ -87,7 +113,7 @@ export const articleTranslations = pgTable(
 		articleId: uuid('article_id')
 			.notNull()
 			.references(() => articles.id, { onDelete: 'cascade' }),
-		locale: localeEnum('locale').notNull(),
+		locale: text('locale').$type<Locale>().notNull(),
 		title: varchar('title', { length: 200 }).notNull(),
 		excerpt: varchar('excerpt', { length: 320 }),
 		/**
@@ -98,7 +124,10 @@ export const articleTranslations = pgTable(
 		 */
 		content: jsonb('content').$type<RichTextDoc>().notNull()
 	},
-	(t) => [uniqueIndex('article_translations_article_locale_uq').on(t.articleId, t.locale)]
+	(t) => [
+		uniqueIndex('article_translations_article_locale_uq').on(t.articleId, t.locale),
+		check('article_translations_locale_valid', oneOf('locale', LOCALES))
+	]
 );
 
 /* -------------------------------------------------------------------------- */
@@ -132,7 +161,7 @@ export const events = pgTable(
 		capacity: integer('capacity').notNull().default(0),
 		registeredCount: integer('registered_count').notNull().default(0),
 		coverImageUrl: text('cover_image_url'),
-		status: publishStatusEnum('status').notNull().default('draft'),
+		status: text('status').$type<PublishStatus>().notNull().default('draft'),
 		...timestamps
 	},
 	(t) => [
@@ -142,7 +171,8 @@ export const events = pgTable(
 		check(
 			'events_within_capacity',
 			sql`${t.capacity} = 0 OR ${t.registeredCount} <= ${t.capacity}`
-		)
+		),
+		check('events_status_valid', oneOf('status', publishStatusSchema.options))
 	]
 );
 
@@ -153,13 +183,16 @@ export const eventTranslations = pgTable(
 		eventId: uuid('event_id')
 			.notNull()
 			.references(() => events.id, { onDelete: 'cascade' }),
-		locale: localeEnum('locale').notNull(),
+		locale: text('locale').$type<Locale>().notNull(),
 		title: varchar('title', { length: 200 }).notNull(),
 		/** TipTap document — see the note on articleTranslations.content. */
 		description: jsonb('description').$type<RichTextDoc>().notNull(),
 		locationName: varchar('location_name', { length: 200 }).notNull()
 	},
-	(t) => [uniqueIndex('event_translations_event_locale_uq').on(t.eventId, t.locale)]
+	(t) => [
+		uniqueIndex('event_translations_event_locale_uq').on(t.eventId, t.locale),
+		check('event_translations_locale_valid', oneOf('locale', LOCALES))
+	]
 );
 
 /* -------------------------------------------------------------------------- */
@@ -205,11 +238,14 @@ export const sponsors = pgTable(
 		name: varchar('name', { length: 160 }).notNull(),
 		logoUrl: text('logo_url').notNull(),
 		websiteUrl: text('website_url'),
-		tier: sponsorTierEnum('tier').notNull().default('community'),
+		tier: text('tier').$type<SponsorTier>().notNull().default('community'),
 		sortOrder: integer('sort_order').notNull().default(0),
 		...timestamps
 	},
-	(t) => [index('sponsors_tier_sort_idx').on(t.tier, t.sortOrder)]
+	(t) => [
+		index('sponsors_tier_sort_idx').on(t.tier, t.sortOrder),
+		check('sponsors_tier_valid', oneOf('tier', sponsorTierSchema.options))
+	]
 );
 
 /* -------------------------------------------------------------------------- */
@@ -239,14 +275,17 @@ export const speakerTranslations = pgTable(
 		speakerId: uuid('speaker_id')
 			.notNull()
 			.references(() => speakers.id, { onDelete: 'cascade' }),
-		locale: localeEnum('locale').notNull(),
+		locale: text('locale').$type<Locale>().notNull(),
 		// Name is translated too: a Lao speaker is written in Lao script on the
 		// Lao page and transliterated on the English one.
 		name: varchar('name', { length: 160 }).notNull(),
 		title: varchar('title', { length: 160 }),
 		bio: text('bio')
 	},
-	(t) => [uniqueIndex('speaker_translations_speaker_locale_uq').on(t.speakerId, t.locale)]
+	(t) => [
+		uniqueIndex('speaker_translations_speaker_locale_uq').on(t.speakerId, t.locale),
+		check('speaker_translations_locale_valid', oneOf('locale', LOCALES))
+	]
 );
 
 /** Join: which speakers appear at which event, and in what order. */
@@ -276,12 +315,13 @@ export const eventSpeakerTranslations = pgTable(
 		eventSpeakerId: uuid('event_speaker_id')
 			.notNull()
 			.references(() => eventSpeakers.id, { onDelete: 'cascade' }),
-		locale: localeEnum('locale').notNull(),
+		locale: text('locale').$type<Locale>().notNull(),
 		talkTitle: varchar('talk_title', { length: 200 }),
 		abstract: text('abstract')
 	},
 	(t) => [
-		uniqueIndex('event_speaker_translations_locale_uq').on(t.eventSpeakerId, t.locale)
+		uniqueIndex('event_speaker_translations_locale_uq').on(t.eventSpeakerId, t.locale),
+		check('event_speaker_translations_locale_valid', oneOf('locale', LOCALES))
 	]
 );
 
@@ -307,12 +347,13 @@ export const eventSponsors = pgTable(
 		sponsorId: uuid('sponsor_id')
 			.notNull()
 			.references(() => sponsors.id, { onDelete: 'cascade' }),
-		tier: sponsorTierEnum('tier').notNull().default('community'),
+		tier: text('tier').$type<SponsorTier>().notNull().default('community'),
 		sortOrder: integer('sort_order').notNull().default(0)
 	},
 	(t) => [
 		uniqueIndex('event_sponsors_event_sponsor_uq').on(t.eventId, t.sponsorId),
-		index('event_sponsors_event_tier_idx').on(t.eventId, t.tier, t.sortOrder)
+		index('event_sponsors_event_tier_idx').on(t.eventId, t.tier, t.sortOrder),
+		check('event_sponsors_tier_valid', oneOf('tier', sponsorTierSchema.options))
 	]
 );
 
@@ -359,15 +400,19 @@ export const eventFeedback = pgTable(
 	]
 );
 
-export const newsletterSubs = pgTable('newsletter_subs', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	email: varchar('email', { length: 254 }).notNull().unique(),
-	locale: localeEnum('locale').notNull().default('lo'),
-	/** Opaque token for one-click unsubscribe links. */
-	token: varchar('token', { length: 64 }).notNull().unique(),
-	subscribedAt: timestamp('subscribed_at', { withTimezone: true }).notNull().defaultNow(),
-	unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true })
-});
+export const newsletterSubs = pgTable(
+	'newsletter_subs',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		email: varchar('email', { length: 254 }).notNull().unique(),
+		locale: text('locale').$type<Locale>().notNull().default('lo'),
+		/** Opaque token for one-click unsubscribe links. */
+		token: varchar('token', { length: 64 }).notNull().unique(),
+		subscribedAt: timestamp('subscribed_at', { withTimezone: true }).notNull().defaultNow(),
+		unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true })
+	},
+	() => [check('newsletter_subs_locale_valid', oneOf('locale', LOCALES))]
+);
 
 /* -------------------------------------------------------------------------- */
 /* Relations (for the Drizzle query API)                                      */
@@ -415,15 +460,12 @@ export const eventSpeakersRelations = relations(eventSpeakers, ({ one, many }) =
 	translations: many(eventSpeakerTranslations)
 }));
 
-export const eventSpeakerTranslationsRelations = relations(
-	eventSpeakerTranslations,
-	({ one }) => ({
-		eventSpeaker: one(eventSpeakers, {
-			fields: [eventSpeakerTranslations.eventSpeakerId],
-			references: [eventSpeakers.id]
-		})
+export const eventSpeakerTranslationsRelations = relations(eventSpeakerTranslations, ({ one }) => ({
+	eventSpeaker: one(eventSpeakers, {
+		fields: [eventSpeakerTranslations.eventSpeakerId],
+		references: [eventSpeakers.id]
 	})
-);
+}));
 
 export const sponsorsRelations = relations(sponsors, ({ many }) => ({
 	events: many(eventSponsors)
