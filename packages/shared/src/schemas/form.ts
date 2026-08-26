@@ -304,9 +304,18 @@ function answerFieldSchema(question: QuestionBlock): z.ZodType<AnswerValue> {
 		) as z.ZodType<AnswerValue>;
 	}
 
+	/*
+	 * `.nullable()`, not `z.union([z.null(), schema])`.
+	 *
+	 * A union reports `invalid_union` and its own generic "Invalid input" at the
+	 * top level, burying the branch messages one level down — so every optional
+	 * question with a real rule told the visitor nothing. `.nullable()`
+	 * short-circuits on null and otherwise delegates, so "Enter a valid phone
+	 * number" is what actually reaches the field.
+	 */
 	return z.preprocess(
 		(value) => (isBlank(value) ? null : value),
-		z.union([z.null(), presentValueSchema(question)])
+		presentValueSchema(question).nullable()
 	) as z.ZodType<AnswerValue>;
 }
 

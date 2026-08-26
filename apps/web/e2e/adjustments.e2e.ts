@@ -159,6 +159,17 @@ test.describe('public feedback', () => {
 	// unprefixed, so matching on English label text needs the English route.
 	const FEEDBACK = '/en/feedback';
 
+	/*
+	 * The page is deliberately cached (`max-age=60`), like the landing page and
+	 * the event pages, so a plain second visit inside the minute is answered
+	 * from the browser's cache and shows the state from *before* publishing.
+	 *
+	 * A unique query on each visit forces a real request. Without it the
+	 * "invisible while pending" assertion would also pass for the wrong reason,
+	 * which is worse than the failure it was causing.
+	 */
+	const wall = (page: Page) => page.goto(`${FEEDBACK}?e2e=${Date.now()}-${Math.random()}`);
+
 	test('is invisible until an organiser publishes it', async ({ page }) => {
 		const message = `E2E feedback ${Date.now()} — please ignore.`;
 
@@ -168,7 +179,7 @@ test.describe('public feedback', () => {
 		await expect(page.getByText(/Thank you/i)).toBeVisible();
 
 		// Not on the public wall yet.
-		await page.goto(FEEDBACK);
+		await wall(page);
 		await expect(page.getByText(message)).toHaveCount(0);
 
 		// An organiser publishes it.
@@ -179,7 +190,7 @@ test.describe('public feedback', () => {
 		await expect(page.getByText('Published to the site.')).toBeVisible();
 
 		// Now it is public.
-		await page.goto(FEEDBACK);
+		await wall(page);
 		await expect(page.getByText(message)).toBeVisible();
 	});
 });

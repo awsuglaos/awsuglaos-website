@@ -187,6 +187,37 @@ describe('buildAnswersSchema', () => {
 	it('refuses a malformed email', () => {
 		expect(schema.safeParse({ ...valid, mail: 'not-an-address' }).success).toBe(false);
 	});
+
+	/*
+	 * An optional question used to be `z.union([z.null(), rule])`, which reports
+	 * `invalid_union` and a generic "Invalid input", burying the rule's own
+	 * message a level down. The visitor was told their answer was wrong but not
+	 * why — on every optional field in the form.
+	 */
+	it('tells the visitor which rule an optional answer broke', () => {
+		const withPhone = buildAnswersSchema(
+			formDefinitionSchema.parse([
+				question({ id: 'tel', type: 'phone', label: 'Phone' })
+			] as FormDefinition)
+		);
+
+		const result = withPhone.safeParse({ tel: 'not-a-phone-number' });
+
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.message).toBe('Enter a valid phone number');
+		expect(result.error?.issues[0]?.path).toEqual(['tel']);
+	});
+
+	it('still accepts a blank optional answer as null', () => {
+		const withPhone = buildAnswersSchema(
+			formDefinitionSchema.parse([
+				question({ id: 'tel', type: 'phone', label: 'Phone' })
+			] as FormDefinition)
+		);
+
+		expect(withPhone.parse({ tel: '' })).toEqual({ tel: null });
+		expect(withPhone.parse({})).toEqual({ tel: null });
+	});
 });
 
 describe('answerForRole', () => {
