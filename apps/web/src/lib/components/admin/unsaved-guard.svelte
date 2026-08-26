@@ -30,9 +30,22 @@
 
 	beforeNavigate((navigation) => {
 		if (!dirty || leaving || !navigation.to) return;
+
 		// A reload or a tab close is not ours to intercept; `beforeunload` below
 		// covers those with the browser's own prompt, which is the only option.
 		if (navigation.type === 'leave') return;
+
+		/*
+		 * Nor is a form submission. These pages carry more than one form — the
+		 * record's own, and the delete inside its danger zone — and a submit is
+		 * the user committing something, not wandering off with it unsaved.
+		 *
+		 * Cancelling one would be actively wrong rather than merely annoying:
+		 * `leave()` resumes by calling `goto`, which would re-issue a POST action
+		 * URL as a GET. Deleting an event you had just edited would silently do
+		 * nothing at all.
+		 */
+		if (navigation.type === 'form') return;
 
 		navigation.cancel();
 		pending = navigation.to.url;

@@ -6,6 +6,13 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main]
+  # Lets a run be started by hand from the Actions tab. During the GitHub
+  # Actions incident on 2026-08-26 push events were being dropped, and with no
+  # manual trigger the only way to ask for a run was to invent another commit.
+  #
+  # It deliberately does not deploy: the `deploy` job below is gated on
+  # `github.event_name == 'push'`, so a manual run verifies and stops there.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
