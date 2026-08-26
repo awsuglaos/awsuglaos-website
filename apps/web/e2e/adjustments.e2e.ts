@@ -39,19 +39,30 @@ test.describe('admin form feedback', () => {
 	 */
 	test('keeps what was typed when validation fails, and marks the field', async ({ page }) => {
 		await signIn(page);
-		await page.goto('/admin/events/new');
+		await page.goto('/admin/events');
+		await page
+			.getByRole('link', { name: /Serverless/i })
+			.first()
+			.click();
 
 		const title = `Kept after rejection ${Date.now()}`;
-
-		// An invalid slug — uppercase and spaces are refused by slugSchema.
-		await page.locator('#slug').fill('Not A Valid Slug');
 		await page.locator('#title_lo').fill(title);
-		await page.getByRole('button', { name: 'Create event' }).click();
 
-		// The typed title survived.
+		/*
+		 * The rule has to be one the *browser* lets through, or the form never
+		 * posts and there is no server answer to render. A malformed slug is
+		 * caught by the input's own `pattern`; an end time at or before the start
+		 * is a cross-field rule that only the schema knows about.
+		 */
+		const startAt = await page.locator('#startAt').inputValue();
+		await page.locator('#endAt').fill(startAt);
+
+		await page.getByRole('button', { name: 'Save event' }).click();
+
+		// The offending field is marked rather than left to be hunted for...
+		await expect(page.locator('#endAt')).toHaveAttribute('aria-invalid', 'true');
+		// ...and the unrelated edit survived the rejection.
 		await expect(page.locator('#title_lo')).toHaveValue(title);
-		// And the offending field is marked rather than left to be hunted for.
-		await expect(page.locator('#slug')).toHaveAttribute('aria-invalid', 'true');
 	});
 });
 
@@ -144,27 +155,31 @@ test.describe('the registration form builder', () => {
 });
 
 test.describe('public feedback', () => {
+	// `/en/` throughout: the public site's base locale is Lao and serves it
+	// unprefixed, so matching on English label text needs the English route.
+	const FEEDBACK = '/en/feedback';
+
 	test('is invisible until an organiser publishes it', async ({ page }) => {
 		const message = `E2E feedback ${Date.now()} — please ignore.`;
 
-		await page.goto('/feedback');
-		await page.getByLabel(/Message/i).fill(message);
+		await page.goto(FEEDBACK);
+		await page.locator('#message').fill(message);
 		await page.getByRole('button', { name: /Send feedback/i }).click();
 		await expect(page.getByText(/Thank you/i)).toBeVisible();
 
 		// Not on the public wall yet.
-		await page.goto('/feedback');
+		await page.goto(FEEDBACK);
 		await expect(page.getByText(message)).toHaveCount(0);
 
 		// An organiser publishes it.
 		await signIn(page);
 		await page.goto('/admin/feedback?status=pending');
-		const card = page.locator('div').filter({ hasText: message }).last();
+		const card = page.locator('[data-slot="card"]').filter({ hasText: message });
 		await card.getByRole('button', { name: 'Publish' }).click();
 		await expect(page.getByText('Published to the site.')).toBeVisible();
 
 		// Now it is public.
-		await page.goto('/feedback');
+		await page.goto(FEEDBACK);
 		await expect(page.getByText(message)).toBeVisible();
 	});
 });

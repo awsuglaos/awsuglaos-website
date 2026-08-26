@@ -88,14 +88,28 @@ export class AdminFormState {
 	readonly enhance: SubmitFunction = () => {
 		this.submitting = true;
 
-		return async ({ update }) => {
+		/*
+		 * Disarm the exit guard *now*, before the response, not after it.
+		 *
+		 * A successful create answers with a redirect, and `update()` puts that
+		 * through `goto` — which is a client-side navigation, so `beforeNavigate`
+		 * sees it. With the form still counted as dirty the guard cancelled it and
+		 * asked whether to discard the work it had just saved, leaving the browser
+		 * sitting on the create page. Every admin create flow broke this way.
+		 */
+		this.dirty = false;
+
+		return async ({ update, result }) => {
 			// `reset: false`: on an edit page the inputs already hold what was just
 			// saved, and resetting would throw away client-side state the rich text
 			// editor and the image fields keep outside the DOM.
 			await update({ reset: false });
 
 			this.submitting = false;
-			this.dirty = false;
+
+			// Nothing was saved, so the work on screen is still unsaved: re-arm the
+			// guard rather than letting the next click walk away with it.
+			if (result.type === 'failure' || result.type === 'error') this.dirty = true;
 
 			await tick();
 			this.focusFirstInvalid();

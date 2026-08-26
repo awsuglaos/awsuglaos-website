@@ -48,13 +48,26 @@ test.describe('event registration', () => {
 		await expect(page.getByText(/already registered/i)).toBeVisible();
 	});
 
+	/*
+	 * This used to submit a one-character name and expect "at least 2
+	 * characters". That rule is gone: with the form built per event, how long an
+	 * answer must be is the organiser's business, and the builder enforces only
+	 * that a required question is answered at all. A one-letter name is also a
+	 * real name in more places than the old rule allowed for.
+	 *
+	 * The property under test is unchanged — a rejected submission renders its
+	 * error inline and stays on the page — so it now uses a rule that does still
+	 * exist. Phone is the right lever: `type="tel"` gets no free validation from
+	 * the browser, so the value actually reaches the server.
+	 */
 	test('shows validation errors instead of submitting', async ({ page }) => {
 		await page.goto(EVENT);
-		await page.getByLabel('Full name').fill('A');
-		await page.getByLabel('Email address').fill('someone@example.la');
+		await page.getByLabel('Full name').fill('E2E Attendee');
+		await page.getByLabel('Email address').fill(uniqueEmail());
+		await page.getByLabel(/Phone/).fill('not-a-phone-number');
 		await page.getByRole('button', { name: 'Complete registration' }).click();
 
-		await expect(page.getByText(/at least 2 characters/i)).toBeVisible();
+		await expect(page.getByText(/valid phone number/i)).toBeVisible();
 		await expect(page).toHaveURL(new RegExp(`${EVENT}$`));
 	});
 });
