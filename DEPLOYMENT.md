@@ -902,6 +902,12 @@ Cognito prefix domains are unique across the whole region, not just your
 account. Change the `domain.prefix` in `sst.config.ts` to something more
 specific and redeploy.
 
+**`DatabaseResumingException` during the migration step**
+Aurora had auto-paused and the first Data API call woke it rather than waiting.
+The migration script retries this for up to two minutes, so seeing it in the log
+is normal — seeing it _fail_ means the resume took longer than that. Re-run the
+job; the database will be warm by then.
+
 **Aurora fails to create with an invalid scaling configuration**
 Scale-to-zero (`min: '0 ACU'`) needs a recent engine version. Pin one explicitly
 in the `Database` component and redeploy.
