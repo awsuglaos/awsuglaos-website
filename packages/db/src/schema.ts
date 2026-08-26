@@ -1,10 +1,12 @@
 import {
 	LOCALES,
 	publishStatusSchema,
+	resourceKindSchema,
 	sponsorTierSchema,
 	userRoleSchema,
 	type Locale,
 	type PublishStatus,
+	type ResourceKind,
 	type RichTextDoc,
 	type SponsorTier,
 	type UserRole
@@ -358,6 +360,67 @@ export const eventSponsors = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* Materials                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Slides, handouts, demo repositories and recordings for an event.
+ *
+ * A row is *either* an upload or a link, never both: `url` holds a
+ * site-relative `/uploads/...` path for the former and an absolute URL for the
+ * latter, and `sizeBytes`/`contentType` are null for links. That split is
+ * deliberate — for a developer group the source code belongs in its repository
+ * and a recording belongs on a video host, so forcing everything into the
+ * bucket would make the worse option the only one.
+ *
+ * Nothing here is shown until the event has ended; see `hasEnded` in
+ * packages/core/src/services/events.ts.
+ */
+export const eventResources = pgTable(
+	'event_resources',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		eventId: uuid('event_id')
+			.notNull()
+			.references(() => events.id, { onDelete: 'cascade' }),
+		title: varchar('title', { length: 160 }).notNull(),
+		kind: text('kind').$type<ResourceKind>().notNull().default('document'),
+		url: text('url').notNull(),
+		/** Null for links — we only know the size of what we stored ourselves. */
+		sizeBytes: integer('size_bytes'),
+		contentType: varchar('content_type', { length: 120 }),
+		sortOrder: integer('sort_order').notNull().default(0),
+		...timestamps
+	},
+	(t) => [
+		index('event_resources_event_sort_idx').on(t.eventId, t.sortOrder),
+		check('event_resources_kind_valid', oneOf('kind', resourceKindSchema.options)),
+		check('event_resources_size_non_negative', sql`${t.sizeBytes} IS NULL OR ${t.sizeBytes} >= 0`)
+	]
+);
+
+/**
+ * Photos taken at the event, uploaded in a batch afterwards.
+ *
+ * No translations: a caption is a caption, and making organisers write every
+ * one twice is the surest way to end up with none at all.
+ */
+export const eventPhotos = pgTable(
+	'event_photos',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		eventId: uuid('event_id')
+			.notNull()
+			.references(() => events.id, { onDelete: 'cascade' }),
+		url: text('url').notNull(),
+		caption: varchar('caption', { length: 200 }),
+		sortOrder: integer('sort_order').notNull().default(0),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [index('event_photos_event_sort_idx').on(t.eventId, t.sortOrder)]
+);
+
+/* -------------------------------------------------------------------------- */
 /* Feedback                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -439,7 +502,9 @@ export const eventsRelations = relations(events, ({ many }) => ({
 	registrations: many(registrations),
 	speakers: many(eventSpeakers),
 	sponsors: many(eventSponsors),
-	feedback: many(eventFeedback)
+	feedback: many(eventFeedback),
+	resources: many(eventResources),
+	photos: many(eventPhotos)
 }));
 
 export const speakersRelations = relations(speakers, ({ many }) => ({
@@ -510,5 +575,9 @@ export type SpeakerTranslation = typeof speakerTranslations.$inferSelect;
 export type EventSpeaker = typeof eventSpeakers.$inferSelect;
 export type EventSpeakerTranslation = typeof eventSpeakerTranslations.$inferSelect;
 export type EventSponsor = typeof eventSponsors.$inferSelect;
+export type EventResource = typeof eventResources.$inferSelect;
+export type NewEventResource = typeof eventResources.$inferInsert;
+export type EventPhoto = typeof eventPhotos.$inferSelect;
+export type NewEventPhoto = typeof eventPhotos.$inferInsert;
 export type EventFeedback = typeof eventFeedback.$inferSelect;
 export type NewEventFeedback = typeof eventFeedback.$inferInsert;

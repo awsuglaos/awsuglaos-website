@@ -32,6 +32,8 @@ export async function truncateAll(): Promise<void> {
 	await database.execute(
 		sql`TRUNCATE TABLE
 			event_feedback,
+			event_resources,
+			event_photos,
 			event_speaker_translations,
 			event_speakers,
 			event_sponsors,

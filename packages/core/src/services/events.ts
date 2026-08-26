@@ -11,6 +11,12 @@ import {
 import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { renderRichText } from '../content/render.js';
 import { currentTime, type AppContext } from '../context.js';
+import {
+	listPhotos,
+	listResources,
+	type EventPhotoView,
+	type EventResourceView
+} from './materials.js';
 import { resolveLocation } from '../maps/resolve.js';
 import { isUniqueViolation } from '../util/db-errors.js';
 import { isFallback, pickTranslation } from '../util/translation.js';
@@ -36,6 +42,12 @@ export interface EventView {
 	descriptionHtml: string;
 	locationName: string;
 	registrationState: RegistrationState;
+	/**
+	 * True once `endAt` has passed. Gates the materials sections: slides and
+	 * photos are for people who were there, or who are catching up afterwards,
+	 * and showing them beforehand would be odd at best.
+	 */
+	hasEnded: boolean;
 	/** null when capacity is unlimited. */
 	seatsRemaining: number | null;
 	/** True when this locale has no translation and the base locale is shown. */
@@ -53,6 +65,18 @@ export function deriveRegistrationState(event: Event, now: Date): RegistrationSt
 	if (event.startAt <= now) return 'closed';
 	if (event.capacity > 0 && event.registeredCount >= event.capacity) return 'full';
 	return 'open';
+}
+
+/**
+ * Whether the event is over.
+ *
+ * Note the difference from `registrationState === 'closed'`, which flips at
+ * `startAt` — registration shuts when the event *begins*. This reads `endAt`,
+ * so an event in progress has closed registration but has not ended, and its
+ * materials stay hidden until the day is actually done.
+ */
+export function hasEnded(event: Event, now: Date): boolean {
+	return event.endAt <= now;
 }
 
 function toView(event: EventWithTranslations, locale: Locale, now: Date): EventView {
@@ -84,8 +108,8 @@ function toView(event: EventWithTranslations, locale: Locale, now: Date): EventV
 		descriptionHtml: renderRichText(t.description),
 		locationName: t.locationName,
 		registrationState: deriveRegistrationState(event, now),
-		seatsRemaining:
-			event.capacity > 0 ? Math.max(0, event.capacity - event.registeredCount) : null,
+		hasEnded: hasEnded(event, now),
+		seatsRemaining: event.capacity > 0 ? Math.max(0, event.capacity - event.registeredCount) : null,
 		translationFallback: isFallback(event.translations, locale)
 	};
 }
@@ -111,7 +135,9 @@ export async function listPublishedEvents(
 				: undefined;
 
 	const rows = await ctx.db.query.events.findMany({
-		where: timeFilter ? and(eq(events.status, 'published'), timeFilter) : eq(events.status, 'published'),
+		where: timeFilter
+			? and(eq(events.status, 'published'), timeFilter)
+			: eq(events.status, 'published'),
 		// Upcoming reads soonest-first; past reads most-recent-first.
 		orderBy: when === 'past' ? [desc(events.startAt)] : [asc(events.startAt)],
 		...(options.limit === undefined ? {} : { limit: options.limit }),
@@ -121,18 +147,48 @@ export async function listPublishedEvents(
 	return rows.map((row) => toView(row as EventWithTranslations, options.locale, now));
 }
 
+/**
+ * The detail page's shape. Lists never carry materials — they would be dozens
+ * of extra rows nobody renders — so the two views are separate types rather
+ * than one type with optional fields.
+ */
+export interface EventDetailView extends EventView {
+	/** Empty until the event has ended. */
+	resources: EventResourceView[];
+	/** Empty until the event has ended. */
+	photos: EventPhotoView[];
+}
+
 export async function getPublishedEventBySlug(
 	ctx: AppContext,
 	slug: string,
 	locale: Locale
-): Promise<EventView> {
+): Promise<EventDetailView> {
 	const row = await ctx.db.query.events.findFirst({
 		where: and(eq(events.slug, slug), eq(events.status, 'published')),
 		with: { translations: true }
 	});
 
 	if (!row) throw new NotFoundError('Event');
-	return toView(row as EventWithTranslations, locale, currentTime(ctx));
+
+	const event = row as EventWithTranslations;
+	const view = toView(event, locale, currentTime(ctx));
+
+	/*
+	 * Returning empty arrays before the event ends, rather than leaving the
+	 * fields undefined, is what keeps the gate reliable: the page renders
+	 * whatever it is given, so there is no way for a template to leak materials
+	 * early by forgetting a condition. It also skips two queries for the
+	 * upcoming events that make up most of the traffic.
+	 */
+	if (!view.hasEnded) return { ...view, resources: [], photos: [] };
+
+	const [resources, photos] = await Promise.all([
+		listResources(ctx, event.id),
+		listPhotos(ctx, event.id)
+	]);
+
+	return { ...view, resources, photos };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -147,10 +203,7 @@ export async function listAllEvents(ctx: AppContext): Promise<EventWithTranslati
 	return rows as EventWithTranslations[];
 }
 
-export async function getEventById(
-	ctx: AppContext,
-	id: string
-): Promise<EventWithTranslations> {
+export async function getEventById(ctx: AppContext, id: string): Promise<EventWithTranslations> {
 	const row = await ctx.db.query.events.findFirst({
 		where: eq(events.id, id),
 		with: { translations: true }

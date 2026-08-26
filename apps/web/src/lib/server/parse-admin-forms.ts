@@ -120,3 +120,40 @@ export function parseEventSponsorsForm(data: FormData) {
 		}))
 	};
 }
+
+/**
+ * Parallel arrays, one entry per row, exactly as the sponsor picker does.
+ *
+ * Empty strings become null rather than being passed through: a link has no
+ * size or content type, and the hidden inputs that carry them are simply blank
+ * in that case.
+ */
+export function parseEventResourcesForm(data: FormData) {
+	const titles = data.getAll('resourceTitle').map(String);
+	const kinds = data.getAll('resourceKind').map(String);
+	const urls = data.getAll('resourceUrl').map(String);
+	const sizes = data.getAll('resourceSize').map(String);
+	const types = data.getAll('resourceContentType').map(String);
+
+	return {
+		resources: titles.map((title, index) => ({
+			title,
+			kind: kinds[index] || 'document',
+			url: urls[index] ?? '',
+			sizeBytes: sizes[index] ? Number(sizes[index]) : null,
+			contentType: types[index] || null
+		}))
+	};
+}
+
+export function parseEventPhotosForm(data: FormData) {
+	const urls = data.getAll('photoUrl').map(String);
+	const captions = data.getAll('photoCaption').map(String);
+
+	return {
+		photos: urls.map((url, index) => ({
+			url,
+			caption: captions[index]?.trim() ? captions[index]! : null
+		}))
+	};
+}

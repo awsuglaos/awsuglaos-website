@@ -9,6 +9,7 @@
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import MessageSquare from '@lucide/svelte/icons/message-square';
 	import Mic from '@lucide/svelte/icons/mic';
+	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Users from '@lucide/svelte/icons/users';
 
 	let { data, form } = $props();
@@ -28,7 +29,7 @@
 			<Button href="/events/{data.event.slug}" target="_blank" variant="ghost" size="sm">
 				<ExternalLink data-icon="inline-start" />
 
-<FormAlert {form} />
+				<FormAlert {form} />
 				View
 			</Button>
 		{/if}
@@ -36,14 +37,19 @@
 </PageHeader>
 
 <!--
-	The three things you do *to* an event, as opposed to editing its copy. They
-	sit above the form because on the week of an event they are what you came
-	for; the description is already written by then.
+	The things you do *to* an event, as opposed to editing its copy. They sit
+	above the form because on the week of an event they are what you came for;
+	the description is already written by then. Materials joins them for the week
+	*after*, which is when slides and photos actually get collected.
 -->
 <nav class="mt-6 flex flex-wrap gap-2" aria-label="Event sections">
 	<Button href="/admin/events/{data.event.id}/lineup" variant="outline" size="sm">
 		<Mic data-icon="inline-start" />
 		Line-up
+	</Button>
+	<Button href="/admin/events/{data.event.id}/materials" variant="outline" size="sm">
+		<Paperclip data-icon="inline-start" />
+		Materials
 	</Button>
 	<Button href="/admin/events/{data.event.id}/feedback" variant="outline" size="sm">
 		<MessageSquare data-icon="inline-start" />

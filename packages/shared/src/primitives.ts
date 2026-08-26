@@ -62,15 +62,16 @@ export const idSchema = z.uuid();
  *
  * Protocol-relative `//host/path` is rejected: it looks relative but is not.
  */
+export function isStoredAssetUrl(value: string): boolean {
+	return /^https?:\/\/[^/]/.test(value) || (value.startsWith('/') && !value.startsWith('//'));
+}
+
 export const imageUrlSchema = z
 	.string()
 	.trim()
 	.max(2048)
 	.refine(
-		(value) =>
-			value === '' ||
-			/^https?:\/\/[^/]/.test(value) ||
-			(value.startsWith('/') && !value.startsWith('//')),
+		(value) => value === '' || isStoredAssetUrl(value),
 		'Upload a file, or paste a full image URL'
 	);
 
@@ -85,3 +86,13 @@ export type UserRole = z.infer<typeof userRoleSchema>;
 
 export const sponsorTierSchema = z.enum(['platinum', 'gold', 'silver', 'community']);
 export type SponsorTier = z.infer<typeof sponsorTierSchema>;
+
+/**
+ * What an event resource *is*, for grouping and iconography on the event page.
+ *
+ * Presentation only — it never gates anything, so a mislabelled row is untidy
+ * rather than broken. `code` and `video` are usually external links (a repo, a
+ * recording); the rest are usually uploads.
+ */
+export const resourceKindSchema = z.enum(['slides', 'code', 'video', 'document', 'other']);
+export type ResourceKind = z.infer<typeof resourceKindSchema>;

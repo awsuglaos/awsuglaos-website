@@ -1,4 +1,11 @@
-import { isAllowedImageType, MAX_UPLOAD_BYTES, type PresignedUpload } from '@awsug/shared';
+import {
+	uploadLimitsFor,
+	extensionFor,
+	ALLOWED_DOCUMENT_TYPES,
+	ALLOWED_IMAGE_TYPES,
+	type PresignedUpload,
+	type UploadPurpose
+} from '@awsug/shared';
 
 /**
  * Two-step upload: ask our server to sign a destination, then PUT the bytes
@@ -8,18 +15,26 @@ import { isAllowedImageType, MAX_UPLOAD_BYTES, type PresignedUpload } from '@aws
  * so the admin's access token stays in its httpOnly cookie and is attached
  * server-side.
  */
-export async function uploadImage(file: File): Promise<string> {
-	if (!isAllowedImageType(file.type)) {
-		throw new Error('Images only: JPEG, PNG, WebP, AVIF or GIF');
+export async function uploadFile(file: File, purpose: UploadPurpose = 'image'): Promise<string> {
+	const { maxBytes, isAllowed } = uploadLimitsFor(purpose);
+
+	// Checked here purely to fail fast with a readable message; the server
+	// applies the same rules and is the one that actually matters.
+	if (!isAllowed(file.type)) {
+		const allowed = (purpose === 'document' ? ALLOWED_DOCUMENT_TYPES : ALLOWED_IMAGE_TYPES)
+			.map(extensionFor)
+			.join(', ');
+		return Promise.reject(new Error(`Unsupported file type. Allowed: ${allowed}`));
 	}
-	if (file.size > MAX_UPLOAD_BYTES) {
-		throw new Error(`Images must be under ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB`);
+	if (file.size > maxBytes) {
+		const limit = Math.floor(maxBytes / 1024 / 1024);
+		return Promise.reject(new Error(`File must be under ${limit}MB`));
 	}
 
 	const presignResponse = await fetch('/admin/uploads', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ contentType: file.type, contentLength: file.size })
+		body: JSON.stringify({ contentType: file.type, contentLength: file.size, purpose })
 	});
 
 	if (!presignResponse.ok) {
@@ -40,4 +55,46 @@ export async function uploadImage(file: File): Promise<string> {
 	}
 
 	return presigned.publicUrl;
+}
+
+/** Unchanged entry point for every image field that predates event materials. */
+export async function uploadImage(file: File): Promise<string> {
+	return uploadFile(file, 'image');
+}
+
+/**
+ * Uploads a batch, a few at a time.
+ *
+ * Serialising would make a gallery of twenty photos feel broken; firing all of
+ * them at once opens twenty parallel PUTs, which on a Lao mobile connection is
+ * how you get timeouts rather than speed. Three is a compromise that keeps the
+ * progress bar moving.
+ *
+ * One file failing must not lose the rest, so results come back per file and
+ * the caller decides what to say about the failures.
+ */
+export async function uploadAll(
+	files: File[],
+	purpose: UploadPurpose,
+	onProgress?: (done: number, total: number) => void
+): Promise<{ file: File; url?: string; error?: string }[]> {
+	const results: { file: File; url?: string; error?: string }[] = new Array(files.length);
+	let done = 0;
+	let next = 0;
+
+	async function worker() {
+		while (next < files.length) {
+			const index = next++;
+			const file = files[index]!;
+			try {
+				results[index] = { file, url: await uploadFile(file, purpose) };
+			} catch (error) {
+				results[index] = { file, error: error instanceof Error ? error.message : 'Upload failed' };
+			}
+			onProgress?.(++done, files.length);
+		}
+	}
+
+	await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
+	return results;
 }

@@ -14,7 +14,9 @@ export {
 	eventSpeakers,
 	eventSpeakerTranslations,
 	eventSponsors,
-	eventFeedback
+	eventFeedback,
+	eventResources,
+	eventPhotos
 } from './schema.js';
 export type {
 	User,
@@ -32,5 +34,9 @@ export type {
 	EventSpeakerTranslation,
 	EventSponsor,
 	EventFeedback,
-	NewEventFeedback
+	NewEventFeedback,
+	EventResource,
+	NewEventResource,
+	EventPhoto,
+	NewEventPhoto
 } from './schema.js';

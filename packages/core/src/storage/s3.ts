@@ -29,6 +29,25 @@ export class S3ObjectStore implements ObjectStore {
 	async presignUpload(input: PresignUploadInput): Promise<PresignedUpload> {
 		const key = buildObjectKey(input.contentType);
 
+		/*
+		 * Documents are stored with `Content-Disposition: attachment`, so the
+		 * browser saves them instead of rendering them.
+		 *
+		 * This is a safety property, not a preference. The bucket is served from
+		 * the site's own origin, so anything the browser renders inline runs *as*
+		 * awsug.la and could read an admin's session. The type allowlist in
+		 * packages/shared/src/upload.ts is the first defence and already excludes
+		 * everything script-bearing; this is the second, and it holds even if that
+		 * list is later widened by someone who has not thought it through.
+		 *
+		 * Images stay inline — they are meant to be displayed, and none of the
+		 * permitted image types can script.
+		 *
+		 * It has to be signed *and* echoed in `headers`: a header that is part of
+		 * the signature but missing from the PUT makes the signature fail.
+		 */
+		const asAttachment = input.purpose === 'document';
+
 		const uploadUrl = await getSignedUrl(
 			this.client,
 			new PutObjectCommand({
@@ -37,7 +56,8 @@ export class S3ObjectStore implements ObjectStore {
 				ContentType: input.contentType,
 				// Signing the length as well means an oversized body is rejected by S3
 				// itself, not merely discouraged by our own size check.
-				ContentLength: input.contentLength
+				ContentLength: input.contentLength,
+				...(asAttachment ? { ContentDisposition: 'attachment' } : {})
 			}),
 			{ expiresIn: this.config.expiresIn ?? 300 }
 		);
@@ -50,7 +70,8 @@ export class S3ObjectStore implements ObjectStore {
 			key,
 			headers: {
 				'content-type': input.contentType,
-				'content-length': String(input.contentLength)
+				'content-length': String(input.contentLength),
+				...(asAttachment ? { 'content-disposition': 'attachment' } : {})
 			}
 		};
 	}

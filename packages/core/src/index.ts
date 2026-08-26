@@ -20,10 +20,12 @@ export * as newsletterService from './services/newsletter.js';
 export * as speakerService from './services/speakers.js';
 export * as feedbackService from './services/feedback.js';
 export * as userService from './services/users.js';
+export * as materialService from './services/materials.js';
 
-export type { EventView } from './services/events.js';
+export type { EventView, EventDetailView } from './services/events.js';
 export type { ArticleView } from './services/articles.js';
 export type { EventStats, CheckInResult, RegistrationResult } from './services/registrations.js';
 export type { EventSponsorView } from './services/sponsors.js';
 export type { EventSpeakerView, SpeakerWithTranslations } from './services/speakers.js';
 export type { FeedbackEntry, FeedbackTarget } from './services/feedback.js';
+export type { EventResourceView, EventPhotoView } from './services/materials.js';

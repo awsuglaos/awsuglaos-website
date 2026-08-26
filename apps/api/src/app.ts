@@ -2,6 +2,7 @@ import {
 	articleService,
 	eventService,
 	feedbackService,
+	materialService,
 	newsletterService,
 	registrationService,
 	speakerService,
@@ -17,6 +18,8 @@ import {
 	inviteUserInputSchema,
 	isDomainError,
 	presignUploadInputSchema,
+	setEventPhotosInputSchema,
+	setEventResourcesInputSchema,
 	setEventSpeakersInputSchema,
 	setEventSponsorsInputSchema,
 	speakerInputSchema,
@@ -83,7 +86,10 @@ app.onError((err, c) => {
 app.notFound((c) => c.json({ error: 'not_found', message: 'No such route' }, 404));
 
 /** Parses and validates a JSON body, throwing ZodError for onError to format. */
-async function body<T>(c: { req: { json: () => Promise<unknown> } }, schema: ZodType<T>): Promise<T> {
+async function body<T>(
+	c: { req: { json: () => Promise<unknown> } },
+	schema: ZodType<T>
+): Promise<T> {
 	return schema.parse(await c.req.json());
 }
 
@@ -165,7 +171,9 @@ admin.get('/events/:id/registrations.csv', async (c) => {
 /* Articles                                                                   */
 /* -------------------------------------------------------------------------- */
 
-admin.get('/articles', async (c) => c.json(await articleService.listAllArticles(await getContext())));
+admin.get('/articles', async (c) =>
+	c.json(await articleService.listAllArticles(await getContext()))
+);
 
 admin.get('/articles/:id', async (c) =>
 	c.json(await articleService.getArticleById(await getContext(), c.req.param('id')))
@@ -272,6 +280,36 @@ admin.get('/events/:id/sponsors', async (c) =>
 admin.put('/events/:id/sponsors', requireRole('editor'), async (c) => {
 	const input = await body(c, setEventSponsorsInputSchema);
 	await sponsorService.setEventSponsors(await getContext(), c.req.param('id'), input);
+	return c.body(null, 204);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Event materials                                                            */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * No visibility rule here: the backoffice always sees the full list, however
+ * far off the event is. Whether the public may see any of it is decided in
+ * eventService.getPublishedEventBySlug, which is the only path a visitor takes.
+ */
+
+admin.get('/events/:id/resources', async (c) =>
+	c.json(await materialService.listResources(await getContext(), c.req.param('id')))
+);
+
+admin.put('/events/:id/resources', requireRole('editor'), async (c) => {
+	const input = await body(c, setEventResourcesInputSchema);
+	await materialService.setResources(await getContext(), c.req.param('id'), input);
+	return c.body(null, 204);
+});
+
+admin.get('/events/:id/photos', async (c) =>
+	c.json(await materialService.listPhotos(await getContext(), c.req.param('id')))
+);
+
+admin.put('/events/:id/photos', requireRole('editor'), async (c) => {
+	const input = await body(c, setEventPhotosInputSchema);
+	await materialService.setPhotos(await getContext(), c.req.param('id'), input);
 	return c.body(null, 204);
 });
 
