@@ -26,12 +26,19 @@ import type { SponsorTier } from '@awsug/shared';
  * did, at `max-w-36` and `max-w-32`, for no reason anyone chose.
  */
 export const SPONSOR_TILE: Record<SponsorTier, { tile: string; logo: string }> = {
-	// Tile height, then the logo height inside it. The gap between the two is the
-	// breathing room, and it stays proportional as the tier steps down.
-	platinum: { tile: 'h-36 px-8', logo: 'h-28 max-w-80' },
-	gold: { tile: 'h-32 px-8', logo: 'h-24 max-w-72' },
-	silver: { tile: 'h-30 px-7', logo: 'h-22 max-w-64' },
-	community: { tile: 'h-28 px-6', logo: 'h-20 max-w-56' }
+	/*
+	 * Tile height, then the logo height inside it. The gap between the two is the
+	 * breathing room, and it stays proportional as the tier steps down.
+	 *
+	 * Sized per breakpoint rather than once. A logo band wants to be generous on
+	 * a laptop, but the same height on a 375px phone is a single sponsor filling
+	 * a third of the screen — so the small size is the phone's and `sm:` is the
+	 * one the design is actually drawn at.
+	 */
+	platinum: { tile: 'h-32 px-6 sm:h-48 sm:px-10', logo: 'h-24 max-w-64 sm:h-40 sm:max-w-96' },
+	gold: { tile: 'h-30 px-6 sm:h-44 sm:px-9', logo: 'h-22 max-w-60 sm:h-36 sm:max-w-88' },
+	silver: { tile: 'h-28 px-5 sm:h-40 sm:px-8', logo: 'h-20 max-w-56 sm:h-32 sm:max-w-80' },
+	community: { tile: 'h-26 px-5 sm:h-36 sm:px-7', logo: 'h-18 max-w-52 sm:h-28 sm:max-w-72' }
 };
 
 /** Classes for the bordered tile a logo sits in. */
