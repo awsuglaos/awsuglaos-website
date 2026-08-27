@@ -100,7 +100,7 @@ test.describe('backoffice', () => {
 		await expect(page.getByText('Saved.')).toBeVisible();
 
 		await page.goto('/admin/speakers/order');
-		const coLeaders = page.getByRole('list', { name: 'Co-leader' });
+		const coLeaders = page.getByRole('list', { name: 'Co-leader', exact: true });
 
 		// Both hold sort order 0 after the promotion, so the slug breaks the tie:
 		// khamla- sorts ahead of nalinthone-.
@@ -112,32 +112,30 @@ test.describe('backoffice', () => {
 
 		// Surviving a reload is what separates a saved order from a moved div.
 		await page.goto('/admin/speakers/order');
-		await expect(page.getByRole('list', { name: 'Co-leader' }).getByRole('link')).toHaveText([
-			'ນະລິນທອນ ສີສຸວັນ',
-			'ຄຳລ້າ ພິມມະສອນ'
-		]);
+		await expect(
+			page.getByRole('list', { name: 'Co-leader', exact: true }).getByRole('link')
+		).toHaveText(['ນະລິນທອນ ສີສຸວັນ', 'ຄຳລ້າ ພິມມະສອນ']);
 
 		// The public directory shows what the board was told. ຄຳລ້າ is seeded
 		// Lao-only, so the English page falls back to the Lao name.
 		await page.goto('/en/speakers');
-		await expect(page.getByRole('list', { name: 'Co-leader' }).getByRole('link')).toHaveText([
-			'Nalinthone Sisouvanh',
-			'ຄຳລ້າ ພິມມະສອນ'
-		]);
+		await expect(
+			page.getByRole('list', { name: 'Co-leader', exact: true }).getByRole('link')
+		).toHaveText(['Nalinthone Sisouvanh', 'ຄຳລ້າ ພິມມະສອນ']);
 
 		// A chevron at the edge of a zone changes the role rather than the
 		// position, and says so rather than claiming to move them "down".
 		await page.goto('/admin/speakers/order');
 		await page
-			.getByRole('list', { name: 'Co-leader' })
+			.getByRole('list', { name: 'Co-leader', exact: true })
 			.getByRole('button', { name: 'Move ຄຳລ້າ ພິມມະສອນ to Organiser' })
 			.click();
 		await page.getByRole('button', { name: 'Save order' }).click();
 		await expect(page.getByText('Order saved.')).toBeVisible();
 
-		await expect(page.getByRole('list', { name: 'Organiser' }).getByRole('link')).toHaveText([
-			'ຄຳລ້າ ພິມມະສອນ'
-		]);
+		await expect(
+			page.getByRole('list', { name: 'Organiser', exact: true }).getByRole('link')
+		).toHaveText(['ຄຳລ້າ ພິມມະສອນ']);
 	});
 
 	test('checks a ticket in and refuses the second scan', async ({ page }) => {

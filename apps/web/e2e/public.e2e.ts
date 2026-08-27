@@ -61,10 +61,18 @@ test.describe('public site', () => {
 	test('speaker directory groups the team above the guests', async ({ page }) => {
 		await page.goto('/en/speakers');
 
+		// `exact` throughout: the name matcher is substring-based, so a bare
+		// 'Leader' also matches the 'Co-leader' heading.
 		await expect(page.getByRole('heading', { name: 'Community leaders', level: 2 })).toBeVisible();
-		await expect(page.getByRole('heading', { name: 'Leader', level: 3 })).toBeVisible();
-		await expect(page.getByRole('heading', { name: 'Co-leader', level: 3 })).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Somchai Vongphachanh' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { name: 'Leader', level: 3, exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByRole('heading', { name: 'Co-leader', level: 3, exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByRole('link', { name: 'Somchai Vongphachanh', exact: true })
+		).toBeVisible();
 	});
 
 	test('speaker profile emits valid, escaped Person JSON-LD', async ({ page }) => {
@@ -86,7 +94,9 @@ test.describe('public site', () => {
 
 	test('an event line-up links through to the speaker profile', async ({ page }) => {
 		await page.goto('/en/events/aws-community-day-vientiane-2026');
-		await page.getByRole('link', { name: 'Somchai Vongphachanh' }).click();
+		// `exact`: the card's social links are named "<speaker> on LinkedIn" and so
+		// match the bare name as a substring.
+		await page.getByRole('link', { name: 'Somchai Vongphachanh', exact: true }).click();
 		await expect(page).toHaveURL(/\/en\/speakers\/somchai-vongphachanh$/);
 	});
 
