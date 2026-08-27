@@ -441,7 +441,7 @@
 														src={sponsor.logoUrl}
 														alt={sponsor.name}
 														loading="lazy"
-														class={cn('h-auto w-auto object-contain', size.logo)}
+														class={cn('w-auto object-contain', size.logo)}
 													/>
 												</a>
 											{:else}
@@ -449,7 +449,7 @@
 													src={sponsor.logoUrl}
 													alt={sponsor.name}
 													loading="lazy"
-													class={cn('h-auto w-auto object-contain', size.logo)}
+													class={cn('w-auto object-contain', size.logo)}
 												/>
 											{/if}
 										</li>

@@ -203,8 +203,15 @@ test.describe('sponsor logos', () => {
 		await expect(logo).toBeVisible();
 
 		const box = await logo.boundingBox();
-		// The old markup capped every logo at h-8 (32px) regardless of shape.
-		expect(box?.height ?? 0).toBeGreaterThan(20);
+
+		/*
+		 * The smallest tier draws its logo at h-16 (64px), and the height is fixed
+		 * rather than a maximum — so this holds even for a sponsor whose artwork
+		 * was exported small, which is the case the old `max-h` sizing got wrong.
+		 */
+		expect(box?.height ?? 0).toBeGreaterThanOrEqual(56);
+
+		// Width follows the aspect ratio, so it is never squashed to nothing.
 		expect(box?.width ?? 0).toBeGreaterThan(40);
 	});
 });
