@@ -284,6 +284,66 @@ export default $config({
 			}
 		});
 
+		/*
+		 * SES configuration set.
+		 *
+		 * Out of the sandbox Amazon holds the account to a bounce rate under 5%
+		 * and a complaint rate under 0.1%, and pauses sending once either is
+		 * exceeded. The first symptom here would be ticket confirmations quietly
+		 * stopping — and `registerForEvent` deliberately swallows send failures so
+		 * a mail outage cannot undo a valid registration, so nothing on the site
+		 * would look wrong at all. That is a good property to have and a terrible
+		 * one to be blind behind.
+		 *
+		 * `reputationMetricsEnabled` publishes those two rates to CloudWatch,
+		 * where an alarm can see it coming. The event destination below adds the
+		 * per-event counts underneath them.
+		 *
+		 * Named per stage, so staging cannot spend production's reputation.
+		 */
+		const emailConfigurationSet = new aws.sesv2.ConfigurationSet('EmailConfigurationSet', {
+			configurationSetName: `awsug-lao-${$app.stage}`,
+			reputationOptions: { reputationMetricsEnabled: true },
+			sendingOptions: { sendingEnabled: true },
+			/*
+			 * Stops SES trying an address that has already hard-bounced or
+			 * complained. Without it a handful of dead addresses on the newsletter
+			 * list get retried on every send and hold the bounce rate up by
+			 * themselves.
+			 */
+			suppressionOptions: { suppressedReasons: ['BOUNCE', 'COMPLAINT'] }
+		});
+
+		new aws.sesv2.ConfigurationSetEventDestination('EmailEventDestination', {
+			configurationSetName: emailConfigurationSet.configurationSetName,
+			eventDestinationName: 'cloudwatch',
+			eventDestination: {
+				enabled: true,
+				/*
+				 * Only the events that mean something is wrong. OPEN and CLICK would
+				 * need a tracking domain, which puts a redirect through a host of our
+				 * own on every link in every ticket — a lot of moving parts, and a
+				 * privacy cost, for numbers nobody here acts on.
+				 */
+				matchingEventTypes: [
+					'BOUNCE',
+					'COMPLAINT',
+					'REJECT',
+					'RENDERING_FAILURE',
+					'DELIVERY_DELAY'
+				],
+				cloudWatchDestination: {
+					dimensionConfigurations: [
+						{
+							dimensionName: 'ses:configuration-set',
+							dimensionValueSource: 'MESSAGE_TAG',
+							defaultDimensionValue: `awsug-lao-${$app.stage}`
+						}
+					]
+				}
+			}
+		});
+
 		const apiEnvironment = {
 			// Ticket, feedback and unsubscribe links in outgoing email are built from
 			// this. Empty or wrong and every email ships a dead link.
@@ -294,6 +354,7 @@ export default $config({
 			DB_SECRET_ARN: database.secretArn,
 			DB_NAME: database.database,
 			SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
+			SES_CONFIGURATION_SET: emailConfigurationSet.configurationSetName,
 			UPLOADS_BUCKET: uploads.name,
 			// UPLOADS_PUBLIC_URL is deliberately unset: image URLs are stored
 			// site-relative, so CloudFront serves /uploads/* from the site's own
@@ -381,6 +442,7 @@ export default $config({
 				DB_SECRET_ARN: database.secretArn,
 				DB_NAME: database.database,
 				SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
+				SES_CONFIGURATION_SET: emailConfigurationSet.configurationSetName,
 				/*
 				 * Switches the app off its local filesystem upload stub. Without it
 				 * `usingLocalUploads()` stays true on Lambda, where the filesystem is
