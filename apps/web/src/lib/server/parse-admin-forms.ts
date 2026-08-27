@@ -76,6 +76,8 @@ export function parseSpeakerForm(data: FormData) {
 		slug: field(data, 'slug') ?? '',
 		photoUrl: field(data, 'photoUrl') ?? '',
 		company: field(data, 'company') ?? '',
+		communityRole: field(data, 'communityRole') ?? 'none',
+		sortOrder: field(data, 'sortOrder') ?? '0',
 		websiteUrl: field(data, 'websiteUrl') ?? '',
 		linkedinUrl: field(data, 'linkedinUrl') ?? '',
 		githubUrl: field(data, 'githubUrl') ?? '',
@@ -85,6 +87,24 @@ export function parseSpeakerForm(data: FormData) {
 			title: field(data, `title_${locale}`) ?? '',
 			bio: field(data, `bio_${locale}`) ?? ''
 		})).filter((t) => t.name !== '')
+	};
+}
+
+/**
+ * The order board posts one flat pair of arrays in visual order: every card in
+ * every role zone, top to bottom. Position in the array is the sort order, so
+ * dragging between zones and reordering within one are the same submission.
+ */
+export function parseSpeakerOrderForm(data: FormData) {
+	const ids = data.getAll('id').map(String);
+	const roles = data.getAll('communityRole').map(String);
+
+	return {
+		speakers: ids.map((id, index) => ({
+			id,
+			communityRole: roles[index] ?? 'none',
+			sortOrder: index
+		}))
 	};
 }
 

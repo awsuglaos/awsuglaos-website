@@ -17,7 +17,10 @@ test.describe('public site', () => {
 
 	test('event detail shows schedule and a registration form', async ({ page }) => {
 		await page.goto('/en/events');
-		await page.getByRole('link', { name: /AWS Community Day/ }).first().click();
+		await page
+			.getByRole('link', { name: /AWS Community Day/ })
+			.first()
+			.click();
 
 		await expect(page.getByRole('heading', { level: 1 })).toContainText('AWS Community Day');
 		await expect(page.getByLabel('Full name')).toBeVisible();
@@ -48,6 +51,48 @@ test.describe('public site', () => {
 		expect(xml).toContain('hreflang="lo"');
 		expect(xml).toContain('hreflang="en"');
 		expect(xml).toContain('/en/events');
+
+		// The directory and each profile, both locales.
+		expect(xml).toContain('/speakers</loc>');
+		expect(xml).toContain('/en/speakers</loc>');
+		expect(xml).toContain('/speakers/somchai-vongphachanh');
+	});
+
+	test('speaker directory groups the team above the guests', async ({ page }) => {
+		await page.goto('/en/speakers');
+
+		await expect(page.getByRole('heading', { name: 'Community leaders', level: 2 })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Leader', level: 3 })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Co-leader', level: 3 })).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Somchai Vongphachanh' })).toBeVisible();
+	});
+
+	test('speaker profile emits valid, escaped Person JSON-LD', async ({ page }) => {
+		await page.goto('/en/speakers/somchai-vongphachanh');
+
+		await expect(page.getByRole('heading', { level: 1 })).toContainText('Somchai Vongphachanh');
+
+		const raw = await page.locator('script[type="application/ld+json"]').textContent();
+		expect(raw).toBeTruthy();
+
+		const parsed = JSON.parse(raw!);
+		expect(parsed['@type']).toBe('Person');
+		expect(parsed.name).toBe('Somchai Vongphachanh');
+		expect(parsed.memberOf.name).toBe('AWS User Group Lao');
+
+		// Same guard as the event page: no raw "<" survived into the inlined JSON.
+		expect(raw).not.toContain('<');
+	});
+
+	test('an event line-up links through to the speaker profile', async ({ page }) => {
+		await page.goto('/en/events/aws-community-day-vientiane-2026');
+		await page.getByRole('link', { name: 'Somchai Vongphachanh' }).click();
+		await expect(page).toHaveURL(/\/en\/speakers\/somchai-vongphachanh$/);
+	});
+
+	test('an unknown speaker returns 404', async ({ page }) => {
+		const response = await page.goto('/en/speakers/does-not-exist');
+		expect(response?.status()).toBe(404);
 	});
 
 	test('unknown page returns a localized 404', async ({ page }) => {

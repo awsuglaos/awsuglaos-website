@@ -8,6 +8,7 @@
 	import { HUB } from '$lib/map/places';
 	import { SPONSOR_TILE } from '$lib/sponsor-tiles';
 	import Seo from '$lib/components/Seo.svelte';
+	import SpeakerCard from '$lib/components/SpeakerCard.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -378,6 +379,39 @@
 				</div>
 			{/each}
 		</div>
+	</section>
+{/if}
+
+<!--
+	The volunteers who run the group, grouped by role in the order the organisers
+	set on the team board.
+
+	This sits with the sponsor credits rather than up by the events, because it is
+	the same kind of claim: who stands behind this. The whole section disappears
+	when nobody has been given a role, so a fresh install never shows an empty
+	"our team" heading.
+-->
+{#if data.team.length > 0}
+	<section class="mx-auto max-w-6xl px-4 pb-16 sm:pb-20">
+		<div class="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+			<div>
+				<h2 class="text-2xl font-bold tracking-tight sm:text-3xl">{m.team_title()}</h2>
+				<p class="text-muted-foreground mt-2 max-w-2xl text-pretty">{m.team_body()}</p>
+			</div>
+			<a
+				href={localizeHref('/speakers')}
+				class="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded-md text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+			>
+				{m.team_meet_all()}
+				<ArrowRight class="size-4" aria-hidden="true" />
+			</a>
+		</div>
+
+		<ul class="grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
+			{#each data.team as person (person.id)}
+				<li><SpeakerCard speaker={person} showRole /></li>
+			{/each}
+		</ul>
 	</section>
 {/if}
 

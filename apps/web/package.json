@@ -23,6 +23,7 @@
 		"clsx": "^2.1.1",
 		"mode-watcher": "^1.1.0",
 		"qrcode": "^1.5.4",
+		"svelte-dnd-action": "^0.9.79",
 		"tailwind-merge": "^3.6.0"
 	},
 	"devDependencies": {

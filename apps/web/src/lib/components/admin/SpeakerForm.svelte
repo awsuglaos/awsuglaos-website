@@ -23,6 +23,8 @@
 			slug: string;
 			photoUrl: string | null;
 			company: string | null;
+			communityRole: 'none' | 'leader' | 'co_leader' | 'organiser';
+			sortOrder: number;
 			websiteUrl: string | null;
 			linkedinUrl: string | null;
 			githubUrl: string | null;
@@ -48,6 +50,8 @@
 		{ code: 'lo' as const, name: 'Lao', required: true },
 		{ code: 'en' as const, name: 'English', required: false }
 	];
+
+	let communityRole = $derived(v('communityRole', speaker?.communityRole ?? 'none'));
 
 	const links = [
 		{ name: 'websiteUrl', label: 'Website' },
@@ -89,6 +93,37 @@
 								<Input {...props} value={v('company', speaker?.company)} />
 							{/snippet}
 						</AdminField>
+
+						<AdminField
+							{result}
+							name="communityRole"
+							label="Community role"
+							description="Whether they help run the group. Unrelated to the job title below. Drag to reorder on the team board."
+						>
+							{#snippet input({ props })}
+								<!--
+									Native <select>: this posts without JavaScript and matches the
+									other status and role pickers in the backoffice, which the e2e
+									suite drives with selectOption().
+								-->
+								<select {...props} class="native-select">
+									<option value="none" selected={communityRole === 'none'}>Not on the team</option>
+									<option value="leader" selected={communityRole === 'leader'}>Leader</option>
+									<option value="co_leader" selected={communityRole === 'co_leader'}>
+										Co-leader
+									</option>
+									<option value="organiser" selected={communityRole === 'organiser'}>
+										Organiser
+									</option>
+								</select>
+							{/snippet}
+						</AdminField>
+
+						<!--
+							Carried through so saving a bio does not knock the person back to the
+							top of their zone. Order itself is set on /admin/speakers/order.
+						-->
+						<input type="hidden" name="sortOrder" value={v('sortOrder', speaker?.sortOrder ?? 0)} />
 
 						<Field.Field class="sm:col-span-2">
 							<ImageField

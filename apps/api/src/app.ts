@@ -24,6 +24,7 @@ import {
 	setEventPhotosInputSchema,
 	setEventResourcesInputSchema,
 	setEventSpeakersInputSchema,
+	setSpeakerOrderInputSchema,
 	setEventSponsorsInputSchema,
 	setSiteFeedbackStatusInputSchema,
 	siteFeedbackStatusSchema,
@@ -283,6 +284,17 @@ admin.post('/uploads/presign', requireRole('editor'), async (c) => {
 /* -------------------------------------------------------------------------- */
 
 admin.get('/speakers', async (c) => c.json(await speakerService.listSpeakers(await getContext())));
+
+/*
+ * Declared before `/speakers/:id` on purpose. Hono matches in declaration order,
+ * so a `:id` route registered first would swallow the literal `order` segment
+ * and try to look up a speaker whose id is "order".
+ */
+admin.put('/speakers/order', requireRole('editor'), async (c) => {
+	const input = await body(c, setSpeakerOrderInputSchema);
+	await speakerService.setSpeakerOrder(await getContext(), input);
+	return c.body(null, 204);
+});
 
 admin.get('/speakers/:id', async (c) =>
 	c.json(await speakerService.getSpeakerById(await getContext(), c.req.param('id')))

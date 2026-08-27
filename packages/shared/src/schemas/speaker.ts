@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BASE_LOCALE, localeSchema } from '../locale.js';
-import { imageUrlSchema, slugSchema, text } from '../primitives.js';
+import { communityRoleSchema, imageUrlSchema, slugSchema, text } from '../primitives.js';
 
 export const speakerTranslationInputSchema = z.object({
 	locale: localeSchema,
@@ -15,12 +15,13 @@ export const speakerInputSchema = z
 		slug: slugSchema,
 		photoUrl: imageUrlSchema.optional(),
 		company: text(0, 160, 'Company').optional(),
+		communityRole: communityRoleSchema.default('none'),
+		/** Position within the community role, lowest first. See COMMUNITY_ROLE_ORDER. */
+		sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 		websiteUrl: z.url().max(2048).optional().or(z.literal('')),
 		linkedinUrl: z.url().max(2048).optional().or(z.literal('')),
 		githubUrl: z.url().max(2048).optional().or(z.literal('')),
-		translations: z
-			.array(speakerTranslationInputSchema)
-			.min(1, 'At least one language is required')
+		translations: z.array(speakerTranslationInputSchema).min(1, 'At least one language is required')
 	})
 	.refine((s) => s.translations.some((t) => t.locale === BASE_LOCALE), {
 		message: `A ${BASE_LOCALE} translation is required`,
@@ -33,6 +34,34 @@ export const speakerInputSchema = z
 
 export type SpeakerInput = z.infer<typeof speakerInputSchema>;
 export type SpeakerTranslationInput = z.infer<typeof speakerTranslationInputSchema>;
+
+/** Display order for community roles wherever the team is listed. */
+export const COMMUNITY_ROLE_ORDER = ['leader', 'co_leader', 'organiser'] as const;
+
+/* -------------------------------------------------------------------------- */
+/* Ordering the directory                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The order board submits every speaker at once, role and position together.
+ *
+ * Same reasoning as an event line-up: one atomic write cannot leave two people
+ * claiming the same slot, and dragging someone from Organiser to Co-leader is a
+ * single change rather than a role edit racing a reorder.
+ */
+export const setSpeakerOrderInputSchema = z.object({
+	speakers: z
+		.array(
+			z.object({
+				id: z.uuid(),
+				communityRole: communityRoleSchema,
+				sortOrder: z.coerce.number().int().min(0).max(9999)
+			})
+		)
+		.max(500)
+});
+
+export type SetSpeakerOrderInput = z.infer<typeof setSpeakerOrderInputSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Assigning speakers to an event                                             */

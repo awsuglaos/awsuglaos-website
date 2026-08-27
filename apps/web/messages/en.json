@@ -151,5 +151,19 @@
   "nav_feedback": "Feedback",
   "feedback_anonymous": "Anonymous",
   "register_success_body_no_email": "You are registered. Keep this page, or print it, and show the QR code when you arrive.",
-  "ticket_no_name": "Ticket holder"
+  "ticket_no_name": "Ticket holder",
+  "nav_speakers": "Speakers",
+  "team_title": "The people who run it",
+  "team_body": "AWS User Group Lao is organised by volunteers who meet in the same city as you do.",
+  "team_meet_all": "Meet everyone who has spoken",
+  "speakers_title": "Speakers",
+  "speakers_body": "Everyone who has stood up at one of our meetups, and the volunteers who put them on.",
+  "speakers_team_heading": "Community leaders",
+  "speakers_all_heading": "Speakers",
+  "speaker_talks": "Talks",
+  "speaker_no_talks": "They have not spoken at a meetup yet.",
+  "speaker_links": "Elsewhere",
+  "role_leader": "Leader",
+  "role_co_leader": "Co-leader",
+  "role_organiser": "Organiser"
 }

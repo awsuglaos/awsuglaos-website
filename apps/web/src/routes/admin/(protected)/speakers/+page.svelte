@@ -1,11 +1,14 @@
 <script lang="ts">
+	import { COMMUNITY_ROLE_LABEL } from '$lib/community-role';
 	import PageHeader from '$lib/components/admin/page-header.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
+	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
 	import * as Table from '$lib/components/ui/table';
+	import ArrowUpDown from '@lucide/svelte/icons/arrow-up-down';
 	import Mic from '@lucide/svelte/icons/mic';
 	import Plus from '@lucide/svelte/icons/plus';
 
@@ -26,6 +29,10 @@
 	description="Profiles are reusable — attach a speaker to an event from that event's line-up page, and their bio is written once."
 >
 	{#snippet actions()}
+		<Button href="/admin/speakers/order" variant="outline">
+			<ArrowUpDown data-icon="inline-start" />
+			Team order
+		</Button>
 		<Button href="/admin/speakers/new">
 			<Plus data-icon="inline-start" />
 			New speaker
@@ -40,7 +47,8 @@
 				<Table.Row>
 					<Table.Head class="w-16"></Table.Head>
 					<Table.Head>Name</Table.Head>
-					<Table.Head>Role</Table.Head>
+					<Table.Head>Community role</Table.Head>
+					<Table.Head>Job title</Table.Head>
 					<Table.Head>Company</Table.Head>
 					<Table.Head>Languages</Table.Head>
 					<Table.Head></Table.Head>
@@ -54,18 +62,25 @@
 								{#if speaker.photoUrl}
 									<Avatar.Image src={speaker.photoUrl} alt="" />
 								{/if}
-								<Avatar.Fallback class="font-semibold">{name(speaker).slice(0, 1)}</Avatar.Fallback
-								>
+								<Avatar.Fallback class="font-semibold">{name(speaker).slice(0, 1)}</Avatar.Fallback>
 							</Avatar.Root>
 						</Table.Cell>
 						<Table.Cell class="font-medium">
 							<a href="/admin/speakers/{speaker.id}" class="hover:underline">{name(speaker)}</a>
 							<span class="text-muted-foreground block text-xs">/{speaker.slug}</span>
 						</Table.Cell>
+						<Table.Cell>
+							{#if speaker.communityRole !== 'none'}
+								<Badge variant="secondary">{COMMUNITY_ROLE_LABEL[speaker.communityRole]}</Badge>
+							{:else}
+								<span class="text-muted-foreground">—</span>
+							{/if}
+						</Table.Cell>
 						<Table.Cell class="text-muted-foreground">{role(speaker) || '—'}</Table.Cell>
 						<Table.Cell class="text-muted-foreground">{speaker.company ?? '—'}</Table.Cell>
 						<Table.Cell class="text-xs whitespace-nowrap">
-							ລາວ{#if speaker.translations.some((t) => t.locale === 'en')} · EN{:else}
+							ລາວ{#if speaker.translations.some((t) => t.locale === 'en')}
+								· EN{:else}
 								<span class="text-muted-foreground"> · no EN</span>
 							{/if}
 						</Table.Cell>
@@ -75,7 +90,7 @@
 					</Table.Row>
 				{:else}
 					<Table.Row class="hover:bg-transparent">
-						<Table.Cell colspan={6}>
+						<Table.Cell colspan={7}>
 							<Empty.Root class="py-8">
 								<Empty.Header>
 									<Empty.Media variant="icon"><Mic /></Empty.Media>

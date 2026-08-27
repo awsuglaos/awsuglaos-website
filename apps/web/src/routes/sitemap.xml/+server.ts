@@ -1,6 +1,6 @@
 import { getContext } from '$lib/server/context';
 import { locales, localizeHref } from '$lib/paraglide/runtime';
-import { articleService, eventService } from '@awsug/core';
+import { articleService, eventService, speakerService } from '@awsug/core';
 import type { RequestHandler } from './$types';
 
 function escapeXml(value: string): string {
@@ -21,15 +21,17 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 	const ctx = await getContext();
 	const origin = url.origin;
 
-	const [events, articles] = await Promise.all([
+	const [events, articles, speakers] = await Promise.all([
 		eventService.listPublishedEvents(ctx, { locale: 'lo' }),
-		articleService.listPublishedArticles(ctx, { locale: 'lo' })
+		articleService.listPublishedArticles(ctx, { locale: 'lo' }),
+		speakerService.listPublicSpeakers(ctx, { locale: 'lo' })
 	]);
 
 	const paths = [
 		{ path: '/', changefreq: 'weekly', priority: '1.0', lastmod: null as Date | null },
 		{ path: '/events', changefreq: 'daily', priority: '0.9', lastmod: null },
 		{ path: '/news', changefreq: 'daily', priority: '0.8', lastmod: null },
+		{ path: '/speakers', changefreq: 'monthly', priority: '0.6', lastmod: null },
 		{ path: '/feedback', changefreq: 'weekly', priority: '0.5', lastmod: null },
 		...events.map((e) => ({
 			path: `/events/${e.slug}`,
@@ -42,6 +44,12 @@ export const GET: RequestHandler = async ({ url, setHeaders }) => {
 			changefreq: 'monthly',
 			priority: '0.6',
 			lastmod: a.publishedAt
+		})),
+		...speakers.map((s) => ({
+			path: `/speakers/${s.slug}`,
+			changefreq: 'monthly',
+			priority: '0.5',
+			lastmod: s.updatedAt
 		}))
 	];
 

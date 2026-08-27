@@ -363,7 +363,18 @@
 										</Avatar.Root>
 
 										<div class="min-w-0 flex-1">
-											<Card.Title>{speaker.name}</Card.Title>
+											<Card.Title>
+												<!--
+													Line-up cards used to dead-end here. The profile is where every
+													other talk this person has given lives.
+												-->
+												<a
+													href={localizeHref(`/speakers/${speaker.slug}`)}
+													class="hover:text-primary focus-visible:ring-ring rounded-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-2"
+												>
+													{speaker.name}
+												</a>
+											</Card.Title>
 											{#if speaker.title || speaker.company}
 												<Card.Description class="mt-0.5">
 													{[speaker.title, speaker.company].filter(Boolean).join(' · ')}

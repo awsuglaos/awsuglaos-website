@@ -28,7 +28,13 @@ export type { EventView, EventDetailView } from './services/events.js';
 export type { ArticleView } from './services/articles.js';
 export type { EventStats, CheckInResult, RegistrationResult } from './services/registrations.js';
 export type { EventSponsorView } from './services/sponsors.js';
-export type { EventSpeakerView, SpeakerWithTranslations } from './services/speakers.js';
+export type {
+	EventSpeakerView,
+	SpeakerCardView,
+	SpeakerProfileView,
+	SpeakerTalkView,
+	SpeakerWithTranslations
+} from './services/speakers.js';
 export type { FeedbackEntry, FeedbackTarget } from './services/feedback.js';
 export type { EventResourceView, EventPhotoView } from './services/materials.js';
 export type { SiteFeedbackView, AdminSiteFeedbackEntry } from './services/site-feedback.js';

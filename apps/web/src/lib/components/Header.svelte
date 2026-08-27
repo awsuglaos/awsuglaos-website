@@ -16,6 +16,7 @@
 
 	const links = $derived([
 		{ href: '/events', label: m.nav_events() },
+		{ href: '/speakers', label: m.nav_speakers() },
 		{ href: '/news', label: m.nav_news() }
 	]);
 

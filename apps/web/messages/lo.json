@@ -151,5 +151,19 @@
   "nav_feedback": "ຄຳຕິຊົມ",
   "feedback_anonymous": "ບໍ່ລະບຸຊື່",
   "register_success_body_no_email": "ບັນທຶກການລົງທະບຽນແລ້ວ. ກະລຸນາເກັບໜ້ານີ້ໄວ້ ຫຼື ພິມອອກ ແລະ ສະແດງ QR code ເມື່ອມາຮອດງານ.",
-  "ticket_no_name": "ຜູ້ຖືປີ້"
+  "ticket_no_name": "ຜູ້ຖືປີ້",
+  "nav_speakers": "ຜູ້ບັນຍາຍ",
+  "team_title": "ຜູ້ທີ່ດູແລກຸ່ມ",
+  "team_body": "AWS User Group Lao ຈັດຕັ້ງໂດຍອາສາສະໝັກທີ່ອາໄສຢູ່ໃນເມືອງດຽວກັນກັບທ່ານ.",
+  "team_meet_all": "ພົບກັບຜູ້ບັນຍາຍທັງໝົດ",
+  "speakers_title": "ຜູ້ບັນຍາຍ",
+  "speakers_body": "ທຸກຄົນທີ່ເຄີຍຂຶ້ນເວທີໃນງານພົບປະຂອງພວກເຮົາ ແລະ ອາສາສະໝັກທີ່ຈັດງານ.",
+  "speakers_team_heading": "ຜູ້ນຳຂອງກຸ່ມ",
+  "speakers_all_heading": "ຜູ້ບັນຍາຍ",
+  "speaker_talks": "ຫົວຂໍ້ບັນຍາຍ",
+  "speaker_no_talks": "ຍັງບໍ່ທັນໄດ້ບັນຍາຍໃນງານພົບປະເທື່ອ.",
+  "speaker_links": "ຊ່ອງທາງອື່ນ",
+  "role_leader": "ຫົວໜ້າກຸ່ມ",
+  "role_co_leader": "ຮອງຫົວໜ້າກຸ່ມ",
+  "role_organiser": "ຜູ້ຈັດງານ"
 }

@@ -150,6 +150,10 @@ const speakerSeeds = [
 	{
 		slug: 'somchai-vongphachanh',
 		company: 'Lao IT Development Group',
+		// A co-founder runs the group; the other two give the landing-page section
+		// and /speakers something to group, and the order board something to move.
+		communityRole: 'leader' as const,
+		sortOrder: 0,
 		photoUrl: 'https://placehold.co/400x400/232f3e/ff9900?text=SV',
 		linkedinUrl: 'https://linkedin.com/in/example',
 		translations: [
@@ -170,6 +174,8 @@ const speakerSeeds = [
 	{
 		slug: 'nalinthone-sisouvanh',
 		company: 'Amazon Web Services',
+		communityRole: 'co_leader' as const,
+		sortOrder: 0,
 		photoUrl: 'https://placehold.co/400x400/0f766e/ffffff?text=NS',
 		websiteUrl: 'https://example.la',
 		translations: [
@@ -190,6 +196,8 @@ const speakerSeeds = [
 	{
 		slug: 'khamla-phimmasone',
 		company: 'National University of Laos',
+		communityRole: 'organiser' as const,
+		sortOrder: 0,
 		photoUrl: 'https://placehold.co/400x400/4c1d95/ffffff?text=KP',
 		githubUrl: 'https://github.com/example',
 		translations: [

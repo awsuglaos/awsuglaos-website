@@ -6,6 +6,8 @@ export interface AdminSpeaker {
 	slug: string;
 	photoUrl: string | null;
 	company: string | null;
+	communityRole: 'none' | 'leader' | 'co_leader' | 'organiser';
+	sortOrder: number;
 	translations: { locale: 'lo' | 'en'; name: string; title: string | null }[];
 }
 

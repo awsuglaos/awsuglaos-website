@@ -88,6 +88,15 @@ export const sponsorTierSchema = z.enum(['platinum', 'gold', 'silver', 'communit
 export type SponsorTier = z.infer<typeof sponsorTierSchema>;
 
 /**
+ * Where someone stands in the group, as opposed to `speaker_translations.title`,
+ * which is their day job — "Solutions Architect" is a title, "Co-leader" is a
+ * role. `none` is the default because most speakers are guests who came to give
+ * one talk, not people who run the group.
+ */
+export const communityRoleSchema = z.enum(['none', 'leader', 'co_leader', 'organiser']);
+export type CommunityRole = z.infer<typeof communityRoleSchema>;
+
+/**
  * What an event resource *is*, for grouping and iconography on the event page.
  *
  * Presentation only — it never gates anything, so a mislabelled row is untidy

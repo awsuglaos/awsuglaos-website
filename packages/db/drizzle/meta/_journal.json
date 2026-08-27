@@ -43,6 +43,13 @@
       "when": 1787757569303,
       "tag": "0005_good_dark_phoenix",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787847167035,
+      "tag": "0006_sleepy_the_stranger",
+      "breakpoints": true
     }
   ]
 }

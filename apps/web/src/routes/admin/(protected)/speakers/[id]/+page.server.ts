@@ -10,6 +10,8 @@ export interface AdminSpeakerDetail {
 	slug: string;
 	photoUrl: string | null;
 	company: string | null;
+	communityRole: 'none' | 'leader' | 'co_leader' | 'organiser';
+	sortOrder: number;
 	websiteUrl: string | null;
 	linkedinUrl: string | null;
 	githubUrl: string | null;

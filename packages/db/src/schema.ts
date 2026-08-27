@@ -3,9 +3,11 @@ import {
 	publishStatusSchema,
 	resourceKindSchema,
 	siteFeedbackStatusSchema,
+	communityRoleSchema,
 	sponsorTierSchema,
 	userRoleSchema,
 	type Answers,
+	type CommunityRole,
 	type FormDefinition,
 	type Locale,
 	type PublishStatus,
@@ -288,16 +290,31 @@ export const sponsors = pgTable(
  * second meetup keeps one profile — their bio is written once, and correcting a
  * typo fixes it everywhere it has ever appeared.
  */
-export const speakers = pgTable('speakers', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	slug: varchar('slug', { length: 120 }).notNull().unique(),
-	photoUrl: text('photo_url'),
-	company: varchar('company', { length: 160 }),
-	websiteUrl: text('website_url'),
-	linkedinUrl: text('linkedin_url'),
-	githubUrl: text('github_url'),
-	...timestamps
-});
+export const speakers = pgTable(
+	'speakers',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		slug: varchar('slug', { length: 120 }).notNull().unique(),
+		photoUrl: text('photo_url'),
+		company: varchar('company', { length: 160 }),
+		/**
+		 * Whether this person helps run the group, and how. Distinct from
+		 * `speaker_translations.title`, which is their job. Most rows stay 'none' —
+		 * a guest speaker is not on the team.
+		 */
+		communityRole: text('community_role').$type<CommunityRole>().notNull().default('none'),
+		/** Position within the role, lowest first. Curated on the order board. */
+		sortOrder: integer('sort_order').notNull().default(0),
+		websiteUrl: text('website_url'),
+		linkedinUrl: text('linkedin_url'),
+		githubUrl: text('github_url'),
+		...timestamps
+	},
+	(t) => [
+		index('speakers_role_sort_idx').on(t.communityRole, t.sortOrder),
+		check('speakers_community_role_valid', oneOf('community_role', communityRoleSchema.options))
+	]
+);
 
 export const speakerTranslations = pgTable(
 	'speaker_translations',

@@ -74,11 +74,70 @@ test.describe('backoffice', () => {
 		// Deleting is guarded by an AlertDialog, not window.confirm: the trigger
 		// opens the dialog, and the button inside it commits.
 		await page.getByRole('button', { name: 'Delete article' }).click();
-		await page
-			.getByRole('alertdialog')
-			.getByRole('button', { name: 'Delete article' })
-			.click();
+		await page.getByRole('alertdialog').getByRole('button', { name: 'Delete article' }).click();
 		await expect(page).toHaveURL('/admin/articles');
+	});
+
+	/**
+	 * The community role reaches the public site by two routes — the <select> on
+	 * the speaker form and the order board — so one flow walks both.
+	 *
+	 * The board is driven by its chevrons rather than a pointer drag. Playwright
+	 * can drive a real drag, but it is flaky across headless engines, and the
+	 * chevrons are the keyboard path that has to keep working regardless.
+	 */
+	test('promotes a speaker, reorders the board, and it reaches the public page', async ({
+		page
+	}) => {
+		await signIn(page);
+
+		// Seeded as an organiser. The <select> is the path that still works with
+		// JavaScript off, so it is the one worth covering.
+		await page.goto('/admin/speakers');
+		await page.getByRole('link', { name: 'ຄຳລ້າ ພິມມະສອນ' }).click();
+		await page.getByLabel('Community role').selectOption('co_leader');
+		await page.getByRole('button', { name: 'Save speaker' }).click();
+		await expect(page.getByText('Saved.')).toBeVisible();
+
+		await page.goto('/admin/speakers/order');
+		const coLeaders = page.getByRole('list', { name: 'Co-leader' });
+
+		// Both hold sort order 0 after the promotion, so the slug breaks the tie:
+		// khamla- sorts ahead of nalinthone-.
+		await expect(coLeaders.getByRole('link')).toHaveText(['ຄຳລ້າ ພິມມະສອນ', 'ນະລິນທອນ ສີສຸວັນ']);
+
+		await coLeaders.getByRole('button', { name: 'Move ນະລິນທອນ ສີສຸວັນ up' }).click();
+		await page.getByRole('button', { name: 'Save order' }).click();
+		await expect(page.getByText('Order saved.')).toBeVisible();
+
+		// Surviving a reload is what separates a saved order from a moved div.
+		await page.goto('/admin/speakers/order');
+		await expect(page.getByRole('list', { name: 'Co-leader' }).getByRole('link')).toHaveText([
+			'ນະລິນທອນ ສີສຸວັນ',
+			'ຄຳລ້າ ພິມມະສອນ'
+		]);
+
+		// The public directory shows what the board was told. ຄຳລ້າ is seeded
+		// Lao-only, so the English page falls back to the Lao name.
+		await page.goto('/en/speakers');
+		await expect(page.getByRole('list', { name: 'Co-leader' }).getByRole('link')).toHaveText([
+			'Nalinthone Sisouvanh',
+			'ຄຳລ້າ ພິມມະສອນ'
+		]);
+
+		// A chevron at the edge of a zone changes the role rather than the
+		// position, and says so rather than claiming to move them "down".
+		await page.goto('/admin/speakers/order');
+		await page
+			.getByRole('list', { name: 'Co-leader' })
+			.getByRole('button', { name: 'Move ຄຳລ້າ ພິມມະສອນ to Organiser' })
+			.click();
+		await page.getByRole('button', { name: 'Save order' }).click();
+		await expect(page.getByText('Order saved.')).toBeVisible();
+
+		await expect(page.getByRole('list', { name: 'Organiser' }).getByRole('link')).toHaveText([
+			'ຄຳລ້າ ພິມມະສອນ'
+		]);
 	});
 
 	test('checks a ticket in and refuses the second scan', async ({ page }) => {
