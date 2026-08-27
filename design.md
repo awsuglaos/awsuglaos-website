@@ -82,6 +82,7 @@ country is composition's problem to solve, not the map's.
 | Family | Routes | Shape |
 |---|---|---|
 | Marketing | `/`, `/events` | **Chart** — the map as the first object, content composed around and beneath it |
+| Directory | `/speakers`, `/speakers/[slug]` | **Portrait wall** — centred heading over a wrapping, centred run of large circular portraits; the profile page is a Long Document under a portrait header |
 | Content | `/news`, `/events/[slug]`, `/news/[slug]`, ticket, feedback, newsletter, error | **Long Document** — one measured column; the event page adds a sticky facts aside from `lg` |
 | App | `/admin/*` | **Workbench** — collapsible sidebar, inset header with breadcrumb, cards over tables |
 
@@ -104,6 +105,13 @@ uses `dark:hidden` / `hidden dark:block`, never `prefers-color-scheme`.
 - **Mono:** the annotation register — map labels, HUD readouts, the stat spec line, event
   dates in list rows, tier labels, article bylines. `text-[0.625rem]`–`[0.6875rem]`,
   `tracking-[0.14em]`–`[0.18em]`, uppercase. Also ticket codes and slugs.
+- **The mono register is Latin and numeric only, and that is a hard limit, not a habit.**
+  `--font-mono` is `Fira Code, monospace`, it carries no Lao fallback, and unlike the sans
+  stack it is not self-hosted — so on the mid-range Android phones this site is built for it
+  resolves to a generic monospace with no Lao glyphs. Every existing use is safe because it
+  is Latin or numeric: coordinates, ticket codes, slugs, dates, and the sponsor tier labels,
+  which are untranslated enum values. Never set a translated string in it — the speaker role
+  labels look exactly like tier labels and are not, because they go through paraglide.
 - All headings are **roman**. No italic display type.
 - Scale: hero `text-5xl` → `sm:text-7xl` → `lg:text-8xl`; page `h1` `text-4xl`/`sm:text-6xl`;
   section `h2` `text-2xl`/`sm:text-3xl`; admin `h1` `text-2xl`.
@@ -164,6 +172,13 @@ Non-negotiable, verified at 390 / 1440 in both themes with measured zero horizon
   a lone card across the whole container.
 - `h1`–`h3` carry `min-width: 0; overflow-wrap: anywhere` for long Lao strings.
 - No two-line clickable text. Nav links, buttons and footer links get `whitespace-nowrap`.
+  A person's name under a portrait is exempt — it is content, it must wrap, and it carries
+  `[overflow-wrap:anywhere]` for the same reason `h1`–`h3` do.
+- **Portrait walls wrap and centre; they are not a grid.** A fixed three-column grid holding
+  one person pins them to the left of two empty tracks and reads as a load failure, and this
+  group is both small and variable. Item track `w-40 sm:w-44 lg:w-56` around a
+  `size-32 sm:size-36 lg:size-48` portrait, gaps `gap-x-6 sm:gap-x-8 lg:gap-x-14` over a
+  generous `gap-y-12`: 2-up at 390, 3-up at 640, 4-up at 1440, each measured clear.
 - **The chart composes per aspect in `scene.ts`, not in CSS.** Landscape lays Laos across the
   diagonal and aims past it so the copy keeps clean ground; portrait stands the country
   upright — its own proportions match a phone — and drops it into the lower half.

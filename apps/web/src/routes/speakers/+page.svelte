@@ -65,16 +65,39 @@
 </svelte:head>
 
 <div class="mx-auto max-w-6xl px-4 py-10 sm:py-14">
-	<h1 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{m.speakers_title()}</h1>
-	<p class="text-muted-foreground mt-3 max-w-[62ch] text-pretty">{m.speakers_body()}</p>
+	<!--
+		Centred, unlike /news and /events, because this page is a wall of faces
+		rather than a column of rows — a left-aligned opening over centred
+		portraits reads as two compositions stacked. The h1 scale still matches its
+		sibling index pages.
+	-->
+	<div class="text-center">
+		<h1 class="text-4xl font-bold tracking-tight text-balance sm:text-6xl">
+			{m.speakers_title()}
+		</h1>
+		<p class="text-muted-foreground mx-auto mt-4 max-w-[56ch] text-pretty">
+			{m.speakers_body()}
+		</p>
+	</div>
 
 	{#if teamByRole.length > 0}
-		<section class="mt-12">
-			<h2 class="text-2xl font-bold tracking-tight sm:text-3xl">{m.speakers_team_heading()}</h2>
+		<section class="mt-16">
+			<h2 class="text-center text-2xl font-bold tracking-tight sm:text-3xl">
+				{m.speakers_team_heading()}
+			</h2>
 
 			{#each teamByRole as group (group.role)}
+				<!--
+					Deliberately NOT the mono annotation register, even though this is the
+					same kind of label as a sponsor tier. `--font-mono` is `Fira Code,
+					monospace` with no Lao fallback and no self-hosted file, so on the
+					mid-range Android phones this site is built for it resolves to a
+					generic monospace with no Lao glyphs. Every documented use of that
+					register is Latin or numeric — coordinates, ticket codes, slugs, tier
+					enums. These labels are translated, so they stay in the sans stack.
+				-->
 				<h3
-					class="text-muted-foreground mt-8 text-xs font-semibold tracking-[0.08em] uppercase first:mt-6"
+					class="text-muted-foreground mt-12 text-center text-xs font-semibold tracking-[0.08em] uppercase first:mt-8"
 				>
 					{roleLabel(group.role)}
 				</h3>
@@ -82,10 +105,10 @@
 				     reader nothing about which group it has landed in. -->
 				<ul
 					aria-label={roleLabel(group.role)}
-					class="mt-4 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3"
+					class="mt-6 flex list-none flex-wrap justify-center gap-x-6 gap-y-12 p-0 sm:gap-x-8 lg:gap-x-14"
 				>
 					{#each group.people as speaker (speaker.id)}
-						<li><SpeakerCard {speaker} /></li>
+						<li class="w-40 min-w-0 sm:w-44 lg:w-56"><SpeakerCard {speaker} /></li>
 					{/each}
 				</ul>
 			{/each}
@@ -93,11 +116,15 @@
 	{/if}
 
 	{#if guests.length > 0}
-		<section class="mt-16">
-			<h2 class="text-2xl font-bold tracking-tight sm:text-3xl">{m.speakers_all_heading()}</h2>
-			<ul class="mt-6 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
+		<section class="mt-20">
+			<h2 class="text-center text-2xl font-bold tracking-tight sm:text-3xl">
+				{m.speakers_all_heading()}
+			</h2>
+			<ul
+				class="mt-8 flex list-none flex-wrap justify-center gap-x-6 gap-y-12 p-0 sm:gap-x-8 lg:gap-x-14"
+			>
 				{#each guests as speaker (speaker.id)}
-					<li><SpeakerCard {speaker} /></li>
+					<li class="w-40 min-w-0 sm:w-44 lg:w-56"><SpeakerCard {speaker} /></li>
 				{/each}
 			</ul>
 		</section>

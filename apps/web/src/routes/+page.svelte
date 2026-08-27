@@ -407,9 +407,14 @@
 			</a>
 		</div>
 
-		<ul class="grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
+		<!--
+			Centred and wrapping rather than a fixed grid: the team is small and its
+			size changes, and a three-column grid holding one person leaves them
+			pinned to the left of two empty tracks looking like a load failure.
+		-->
+		<ul class="flex list-none flex-wrap justify-center gap-x-6 gap-y-12 p-0 sm:gap-x-8 lg:gap-x-14">
 			{#each data.team as person (person.id)}
-				<li><SpeakerCard speaker={person} showRole /></li>
+				<li class="w-40 min-w-0 sm:w-44 lg:w-56"><SpeakerCard speaker={person} showRole /></li>
 			{/each}
 		</ul>
 	</section>

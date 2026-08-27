@@ -80,12 +80,12 @@
 		{m.speakers_title()}
 	</a>
 
-	<header class="mt-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-7">
-		<Avatar.Root class="size-24 shrink-0 sm:size-28">
+	<header class="mt-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-9">
+		<Avatar.Root class="size-32 shrink-0 sm:size-40 lg:size-48">
 			{#if speaker.photoUrl}
-				<Avatar.Image src={speaker.photoUrl} alt="" />
+				<Avatar.Image src={speaker.photoUrl} alt="" class="object-cover" />
 			{/if}
-			<Avatar.Fallback class="text-3xl font-semibold">
+			<Avatar.Fallback class="text-4xl font-semibold sm:text-5xl">
 				{speaker.name.slice(0, 1)}
 			</Avatar.Fallback>
 		</Avatar.Root>
