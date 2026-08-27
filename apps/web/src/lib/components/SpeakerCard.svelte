@@ -36,7 +36,14 @@
 		href={localizeHref(`/speakers/${speaker.slug}`)}
 		class="group focus-visible:ring-ring flex w-full min-w-0 flex-col items-center rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
 	>
-		<Avatar.Root class="lift size-32 sm:size-36 lg:size-48">
+		<!--
+			aria-hidden: the photo is decorative (alt="") and the fallback initial
+			stands in for it, so it is decorative too. Without this the initial is
+			inside the link and the accessible name becomes "S Somchai
+			Vongphachanh" — and only sometimes, because bits-ui drops the fallback
+			once the image loads. The name is already right underneath.
+		-->
+		<Avatar.Root aria-hidden="true" class="lift size-32 sm:size-36 lg:size-48">
 			<!--
 				Only mounted when there is a photo: bits-ui treats a missing `src` as an
 				image still loading, which leaves the fallback initial hidden behind an

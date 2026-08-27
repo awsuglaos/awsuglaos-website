@@ -81,7 +81,8 @@
 	</a>
 
 	<header class="mt-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-9">
-		<Avatar.Root class="size-32 shrink-0 sm:size-40 lg:size-48">
+		<!-- Decorative, like the photo it stands in for. See SpeakerCard. -->
+		<Avatar.Root aria-hidden="true" class="size-32 shrink-0 sm:size-40 lg:size-48">
 			{#if speaker.photoUrl}
 				<Avatar.Image src={speaker.photoUrl} alt="" class="object-cover" />
 			{/if}

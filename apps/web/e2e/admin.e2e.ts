@@ -116,12 +116,21 @@ test.describe('backoffice', () => {
 			page.getByRole('list', { name: 'Co-leader', exact: true }).getByRole('link')
 		).toHaveText(['ນະລິນທອນ ສີສຸວັນ', 'ຄຳລ້າ ພິມມະສອນ']);
 
-		// The public directory shows what the board was told. ຄຳລ້າ is seeded
-		// Lao-only, so the English page falls back to the Lao name.
+		// The public directory shows what the board was told.
+		//
+		// Asserted by href rather than by text: each card's link wraps the portrait
+		// as well as the name, and until the photo loads bits-ui renders a fallback
+		// initial inside it. The slug is the identity and no load race moves it.
 		await page.goto('/en/speakers');
-		await expect(
-			page.getByRole('list', { name: 'Co-leader', exact: true }).getByRole('link')
-		).toHaveText(['Nalinthone Sisouvanh', 'ຄຳລ້າ ພິມມະສອນ']);
+		const publicCoLeaders = page
+			.getByRole('list', { name: 'Co-leader', exact: true })
+			.getByRole('link');
+		await expect(publicCoLeaders).toHaveCount(2);
+		await expect(publicCoLeaders.nth(0)).toHaveAttribute(
+			'href',
+			/\/speakers\/nalinthone-sisouvanh$/
+		);
+		await expect(publicCoLeaders.nth(1)).toHaveAttribute('href', /\/speakers\/khamla-phimmasone$/);
 
 		// A chevron at the edge of a zone changes the role rather than the
 		// position, and says so rather than claiming to move them "down".
