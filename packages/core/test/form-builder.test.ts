@@ -43,6 +43,42 @@ const CUSTOM_FORM: FormDefinition = [
 	}
 ];
 
+/** The defaults plus a date question, for the day-by-day tally. */
+const DATE_FORM: FormDefinition = [
+	...DEFAULT_FORM_BLOCKS,
+	{
+		kind: 'question',
+		id: 'visit',
+		type: 'date',
+		label: 'Which day suits you?',
+		help: null,
+		placeholder: null,
+		required: false,
+		role: null,
+		options: [],
+		min: null,
+		max: null
+	}
+];
+
+/** The same question written twice, as two different types. */
+const asked = (type: 'shortText' | 'number'): FormDefinition => [
+	...DEFAULT_FORM_BLOCKS,
+	{
+		kind: 'question',
+		id: 'seats',
+		type,
+		label: 'How many seats?',
+		help: null,
+		placeholder: null,
+		required: false,
+		role: null,
+		options: [],
+		min: null,
+		max: null
+	}
+];
+
 describe('a new event', () => {
 	it('starts with the default form, so nothing an attendee sees changes', async () => {
 		const ctx = await makeContext();
@@ -344,5 +380,85 @@ describe('analytics', () => {
 		// All four arrived on one day here, so the trend is a single point whose
 		// running total matches.
 		expect(trend.at(-1)?.cumulative).toBe(4);
+	});
+
+	it('leaves what people wrote out of the charts entirely', async () => {
+		const { ctx, event } = await eventWithAnswers();
+		const rows = await registrationService.listRegistrations(ctx, event.id);
+		const form = await eventService.getFormSchema(ctx, event.id);
+
+		const summary = formAnalyticsService.summariseRegistrations(form, rows);
+
+		// The name, email, phone and organisation questions are still on the form
+		// and still answered. They are simply not something to draw.
+		expect(summary.questions.map((q) => q.id)).toEqual(['level', 'laptop']);
+
+		// The whole reason this is aggregated on the server: no name and no
+		// address reaches the page, however the summaries are later rendered.
+		const wire = JSON.stringify(summary.questions);
+		expect(wire).not.toContain('attendee0@example.la');
+		expect(wire).not.toContain('Attendee 0');
+	});
+
+	it('buckets date answers by day, earliest first', async () => {
+		const ctx = await makeContext();
+		const event = await eventService.createEvent(ctx, futureEvent({ capacity: 50 }));
+		await eventService.setFormSchema(ctx, event.id, { blocks: DATE_FORM });
+
+		// Deliberately out of order, and one day chosen twice.
+		const days = ['2026-03-02', '2026-03-01', '2026-03-02'];
+		for (const [index, visit] of days.entries()) {
+			await registrationService.registerForEvent(
+				ctx,
+				'test-event',
+				{
+					answers: {
+						fullName: `Attendee ${index}`,
+						email: `attendee${index}@example.la`,
+						visit
+					}
+				},
+				'en'
+			);
+		}
+
+		const rows = await registrationService.listRegistrations(ctx, event.id);
+		const form = await eventService.getFormSchema(ctx, event.id);
+		const visit = formAnalyticsService
+			.summariseRegistrations(form, rows)
+			.questions.find((q) => q.id === 'visit');
+
+		expect(visit?.tallies).toEqual([
+			{ label: '2026-03-01', count: 1, percent: 33 },
+			{ label: '2026-03-02', count: 2, percent: 67 }
+		]);
+	});
+
+	it('counts answers that no longer fit the type their question was given', async () => {
+		const ctx = await makeContext();
+		const event = await eventService.createEvent(ctx, futureEvent({ capacity: 50 }));
+		await eventService.setFormSchema(ctx, event.id, { blocks: asked('shortText') });
+
+		await registrationService.registerForEvent(
+			ctx,
+			'test-event',
+			{ answers: { fullName: 'Somchai', email: 'somchai@example.la', seats: 'two or three' } },
+			'en'
+		);
+
+		// The organiser retypes the question after the answers came in.
+		await eventService.setFormSchema(ctx, event.id, { blocks: asked('number') });
+
+		const rows = await registrationService.listRegistrations(ctx, event.id);
+		const form = await eventService.getFormSchema(ctx, event.id);
+		const seats = formAnalyticsService
+			.summariseRegistrations(form, rows)
+			.questions.find((q) => q.id === 'seats');
+
+		// Answered, but nothing to average — and the old answer is not smuggled
+		// out as a response list either. The page says so rather than going blank.
+		expect(seats?.answered).toBe(1);
+		expect(seats?.distribution).toEqual([]);
+		expect(seats?.average).toBeNull();
 	});
 });

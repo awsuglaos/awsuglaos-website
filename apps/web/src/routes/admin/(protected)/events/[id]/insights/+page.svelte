@@ -7,11 +7,11 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
-	import { Input } from '$lib/components/ui/input';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ChartNoAxesColumn from '@lucide/svelte/icons/chart-no-axes-column';
 	import Download from '@lucide/svelte/icons/download';
-	import Search from '@lucide/svelte/icons/search';
+	import { formatDate } from '$lib/format';
+	import type { ChoiceTally } from '@awsug/core';
 
 	let { data } = $props();
 
@@ -40,16 +40,16 @@
 		}
 	]);
 
-	/** One search box per text question, kept by question id. */
-	let searches = $state<Record<string, string>>({});
-
-	function matching(id: string, responses: string[]): string[] {
-		const needle = (searches[id] ?? '').trim().toLocaleLowerCase();
-		if (needle === '') return responses;
-		return responses.filter((response) => response.toLocaleLowerCase().includes(needle));
-	}
-
-	const TEXT_TYPES = ['shortText', 'paragraph', 'email', 'phone', 'url', 'date'];
+	/*
+	 * Dates are tallied as `YYYY-MM-DD` because that is what sorts; they are
+	 * shown the way every other date on this site is. Pinned to +07:00 rather
+	 * than parsed as local time, so the server rendering this and the browser
+	 * hydrating it cannot disagree about which day it is.
+	 */
+	const asDay = (tally: ChoiceTally): ChoiceTally => {
+		const day = new Date(`${tally.label}T00:00:00+07:00`);
+		return Number.isNaN(day.getTime()) ? tally : { ...tally, label: formatDate(day) };
+	};
 </script>
 
 <Seo title="Insights" noindex />
@@ -116,7 +116,10 @@
 					{#if question.answered === 0}
 						<p class="text-muted-foreground text-sm">No answers yet.</p>
 					{:else if question.tallies.length > 0}
-						<BarList rows={question.tallies} caption={question.label} />
+						<BarList
+							rows={question.type === 'date' ? question.tallies.map(asDay) : question.tallies}
+							caption={question.label}
+						/>
 					{:else if question.type === 'yesNo' || question.type === 'consent'}
 						<!-- A consent box is still yes/no underneath, but "Yes / No" against
 						     a sentence like "I accept the terms" reads as a poll result
@@ -153,39 +156,39 @@
 								percent: Math.round((point.count / question.answered) * 100)
 							}))}
 						/>
-					{:else if TEXT_TYPES.includes(question.type)}
-						{@const rows = matching(question.id, question.responses)}
+					{:else}
 						<!--
-							Free text is not charted. There is nothing to aggregate, and a word
-							cloud would turn what people actually wrote into decoration — so the
-							answers are listed, with a filter for finding one.
+							Answered, but nothing here adds up. A question retyped after the
+							replies came in leaves the old answers behind in the old shape, and
+							a blank card reads as a bug rather than as what it is.
 						-->
-						<div class="relative max-w-sm">
-							<Search
-								class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-								aria-hidden="true"
-							/>
-							<Input
-								class="pl-9"
-								placeholder="Search answers"
-								aria-label="Search answers to {question.label}"
-								value={searches[question.id] ?? ''}
-								oninput={(e) => (searches[question.id] = e.currentTarget.value)}
-							/>
-						</div>
-
-						<ul class="mt-4 flex list-none flex-col gap-2 p-0">
-							{#each rows as response, index (index)}
-								<li class="border-border rounded-lg border px-3 py-2 text-sm">{response}</li>
-							{/each}
-						</ul>
-
-						{#if rows.length === 0}
-							<p class="text-muted-foreground mt-4 text-sm">Nothing matches that search.</p>
-						{/if}
+						<p class="text-muted-foreground text-sm">
+							{question.answered} answered, but nothing here can be charted — the stored answers are not
+							the shape this question now asks for. They are all in the CSV export.
+						</p>
 					{/if}
 				</Card.Content>
 			</Card.Root>
+		{:else}
+			<!--
+				A form that only asks for a name, an address and a few written replies
+				has nothing to chart, and the trend above is still worth showing.
+				Saying where those answers actually are beats an empty column.
+			-->
+			<Empty.Root>
+				<Empty.Header>
+					<Empty.Media variant="icon"><ChartNoAxesColumn /></Empty.Media>
+					<Empty.Title>Nothing to chart</Empty.Title>
+					<Empty.Description>
+						This form only asks for written answers. Read them next to the person who wrote them.
+					</Empty.Description>
+				</Empty.Header>
+				<Empty.Content>
+					<Button href="/admin/events/{data.event.id}/registrations" variant="outline" size="sm">
+						Open registrants
+					</Button>
+				</Empty.Content>
+			</Empty.Root>
 		{/each}
 
 		{#if data.analytics.orphans.length > 0}

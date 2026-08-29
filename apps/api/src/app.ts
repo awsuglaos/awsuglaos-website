@@ -216,8 +216,11 @@ admin.put('/events/:id/form', requireRole('editor'), async (c) => {
  * Aggregated here rather than in the browser: the raw answers include every
  * free-text reply and every email address, and shipping the lot to a dashboard
  * that only draws bars would put more personal data on the wire than the page
- * needs. The registrations endpoint above is still there for the cases that
- * genuinely want row-level detail.
+ * needs. What counts as aggregatable is an explicit allow-list in
+ * `form-analytics.ts` — a question type that is not on it contributes a count
+ * and nothing else, so nothing anybody wrote reaches this response. The
+ * registrations endpoint above is still there for the cases that genuinely
+ * want row-level detail.
  */
 admin.get('/events/:id/analytics', async (c) => {
 	const ctx = await getContext();

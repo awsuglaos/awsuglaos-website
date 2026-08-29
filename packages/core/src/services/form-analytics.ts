@@ -50,8 +50,6 @@ export interface QuestionSummary {
 	/** Yes/no questions. */
 	yes: number;
 	no: number;
-	/** Text questions: every answer, newest registration first. */
-	responses: string[];
 }
 
 /** Answers to a question that has since been deleted from the form. */
@@ -74,6 +72,33 @@ export interface FormAnalytics {
 	orphans: OrphanAnswers[];
 	trend: TrendPoint[];
 }
+
+/**
+ * The question types this page can say something about.
+ *
+ * An allow-list rather than a list of the ones to skip. A question type added
+ * later is left out until somebody has decided how it aggregates, and being
+ * left out is the safe failure: the other default is shipping whatever people
+ * typed into it to a page whose whole job is drawing bars.
+ *
+ * What is missing here is not lost. Written answers — a name, an address, the
+ * paragraph somebody wrote about what they hope to learn — are read one person
+ * at a time on the registrants page, where the name they belong to is the
+ * entire point, and the CSV export still carries every one of them.
+ */
+export const AGGREGATABLE_TYPES = [
+	'radio',
+	'checkboxes',
+	'dropdown',
+	'rating',
+	'number',
+	'yesNo',
+	'consent',
+	'date'
+] as const satisfies readonly QuestionType[];
+
+export const isAggregatable = (type: QuestionType): boolean =>
+	(AGGREGATABLE_TYPES as readonly string[]).includes(type);
 
 /*
  * Grouped by the Vientiane day, not the UTC one. An 09:00 sign-up in Vientiane
@@ -128,8 +153,7 @@ function summariseQuestion(
 		median: null,
 		distribution: [],
 		yes: 0,
-		no: 0,
-		responses: []
+		no: 0
 	};
 
 	if (isChoiceType(question.type)) {
@@ -185,7 +209,34 @@ function summariseQuestion(
 		return summary;
 	}
 
-	summary.responses = answered.map(answerToText);
+	/*
+	 * A date tallies like a choice, except the buckets come from the answers
+	 * rather than from a list of options, and they are ordered by the date
+	 * itself rather than by popularity — "which day did people pick" is a
+	 * question about the shape of a calendar, and sorting it by count destroys
+	 * exactly the thing being asked. `YYYY-MM-DD` sorts correctly as a string,
+	 * so the ordering needs no parsing.
+	 */
+	if (question.type === 'date') {
+		const counts = new Map<string, number>();
+		for (const value of answered) {
+			const day = String(value);
+			counts.set(day, (counts.get(day) ?? 0) + 1);
+		}
+
+		const base = answered.length || 1;
+		summary.tallies = [...counts]
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([label, count]) => ({ label, count, percent: Math.round((count / base) * 100) }));
+
+		return summary;
+	}
+
+	/*
+	 * Unreachable while the caller filters on AGGREGATABLE_TYPES, and that is
+	 * the point: a type nobody has classified yet comes back as a count and
+	 * nothing else, rather than as a transcript of what people wrote into it.
+	 */
 	return summary;
 }
 
@@ -257,7 +308,10 @@ export function summariseRegistrations(
 ): FormAnalytics {
 	return {
 		total: rows.length,
-		questions: form.filter(isQuestion).map((question) => summariseQuestion(question, rows)),
+		questions: form
+			.filter(isQuestion)
+			.filter((question) => isAggregatable(question.type))
+			.map((question) => summariseQuestion(question, rows)),
 		orphans: findOrphans(form, rows),
 		trend: buildTrend(rows)
 	};
