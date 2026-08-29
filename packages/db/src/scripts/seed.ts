@@ -361,6 +361,54 @@ const eventSeeds = [
 			{ name: 'Amazon Web Services', tier: 'gold' as const },
 			{ name: 'Vientiane Tech Community', tier: 'community' as const }
 		]
+	},
+	/*
+	 * The one event off the city model.
+	 *
+	 * `CITY_BBOX` covers greater Vientiane, and the event page falls back to the Google
+	 * embed for anything outside it — a branch that needs a fixture to stay honest. The
+	 * university campus used to be that fixture, back when the box was the downtown crop;
+	 * widening the box brought it onto the model and left the fallback untested. A
+	 * provincial meetup is what the branch was always describing, so that is what it gets.
+	 */
+	{
+		slug: 'cloud-meetup-luang-prabang',
+		startAt: hours(days(-150), 9),
+		endAt: hours(days(-150), 16),
+		capacity: 40,
+		status: 'published' as const,
+		locationUrl: 'https://www.google.com/maps?q=19.8856,102.1347',
+		coverImageUrl: 'https://placehold.co/1200x630/7c2d12/ffffff?text=Luang+Prabang',
+		translations: [
+			{
+				locale: 'lo' as const,
+				title: 'ພົບປະຊາວ Cloud ຫຼວງພະບາງ',
+				description: doc(
+					p(
+						'ການພົບປະຄັ້ງທຳອິດຂອງກຸ່ມຢູ່ນອກນະຄອນຫຼວງວຽງຈັນ: ພື້ນຖານ Cloud ແລະ ການສ້າງຊຸມຊົນຢູ່ພາກເໜືອ.'
+					)
+				),
+				locationName: 'ສູນຊຸມຊົນ ຫຼວງພະບາງ'
+			},
+			{
+				locale: 'en' as const,
+				title: 'Luang Prabang Cloud Meetup',
+				description: doc(
+					p(
+						"The group's first meetup outside Vientiane: cloud fundamentals and building a community up north."
+					)
+				),
+				locationName: 'Luang Prabang Community Hub'
+			}
+		],
+		speakers: [
+			{
+				slug: 'khamla-phimmasone',
+				lo: 'ເລີ່ມຕົ້ນຢູ່ຕ່າງແຂວງ',
+				en: 'Starting up outside the capital'
+			}
+		],
+		sponsors: [{ name: 'Amazon Web Services', tier: 'gold' as const }]
 	}
 ];
 

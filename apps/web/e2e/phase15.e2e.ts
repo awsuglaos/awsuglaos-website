@@ -34,15 +34,25 @@ test.describe('event page additions', () => {
 	});
 
 	test('falls back to the map embed for a venue outside the mapped area', async ({ page }) => {
-		// The university campus is ~5 km west of the mapped area.
-		await page.goto('/en/events/intro-to-cloud-computing');
+		// A provincial meetup. `CITY_BBOX` covers greater Vientiane, so the nearest venue
+		// off the model is in another province — Luang Prabang, ~215 km north.
+		await page.goto('/en/events/cloud-meetup-luang-prabang');
 
 		await expect(page.locator('[data-map-view="venue"]')).toHaveCount(0);
 
 		const map = page.locator('iframe[src*="output=embed"]');
 		await expect(map).toBeVisible();
-		await expect(map).toHaveAttribute('src', /q=17\.9915%2C102\.5628/);
+		await expect(map).toHaveAttribute('src', /q=19\.8856%2C102\.1347/);
 		await expect(map).toHaveAttribute('loading', 'lazy');
+	});
+
+	test('puts a venue inside the mapped area on the 3D locator', async ({ page }) => {
+		// The university campus sits 5 km west of downtown — outside the original city box
+		// and inside the widened one. This is the case that regressed silently before.
+		await page.goto('/en/events/intro-to-cloud-computing');
+
+		await expect(page.locator('[data-map-view="venue"]')).toBeVisible();
+		await expect(page.locator('iframe[src*="output=embed"]')).toHaveCount(0);
 	});
 
 	test('shows speakers with their talk for this event', async ({ page }) => {
