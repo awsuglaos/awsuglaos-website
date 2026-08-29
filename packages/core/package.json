@@ -8,6 +8,8 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
+    "mail:preview": "tsx scripts/mail-preview.ts",
+    "mail:send": "tsx scripts/mail-send.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -20,6 +22,8 @@
     "@awsug/shared": "workspace:*",
     "@tiptap/static-renderer": "^3.29.2",
     "drizzle-orm": "^0.45.2",
+    "qrcode": "^1.5.4",
+    "resend": "^6.24.0",
     "sanitize-html": "^2.17.6",
     "ulid": "^3.0.2",
     "zod": "^4.4.3"
@@ -27,9 +31,11 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/pg": "^8.21.0",
+    "@types/qrcode": "^1.5.6",
     "@types/sanitize-html": "^2.16.1",
     "dotenv": "^17.4.2",
     "pg": "^8.23.0",
+    "tsx": "^4.23.11",
     "typescript": "~6.0.3",
     "vitest": "^4.1.10"
   }

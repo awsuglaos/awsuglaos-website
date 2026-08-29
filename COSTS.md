@@ -50,14 +50,14 @@ the infrastructure, so most fixed costs are paid twice.
 
 **Volume assumptions**, agreed for this model:
 
-| Assumption                         | Value     | Basis                                                                  |
-| ---------------------------------- | --------- | ---------------------------------------------------------------------- |
-| Events per year                    | 4         | agreed planning figure                                                 |
-| Attendees per event                | ~50       | seeded capacities are 150 / 60 / 30                                    |
-| Emails per registration            | exactly 1 | one confirmation with a ticket link; there is no bulk or reminder mail |
-| Page views, typical month          | 3,000     | single-city audience                                                   |
-| Page views, event month            | 9,000     | registration period plus event day                                     |
-| Database awake time, typical month | 55 hours  | see [Where the money goes](#where-the-money-actually-goes)             |
+| Assumption                         | Value     | Basis                                                                      |
+| ---------------------------------- | --------- | -------------------------------------------------------------------------- |
+| Events per year                    | 4         | agreed planning figure                                                     |
+| Attendees per event                | ~50       | seeded capacities are 150 / 60 / 30                                        |
+| Emails per registration            | exactly 1 | one confirmation carrying the ticket QR; there is no bulk or reminder mail |
+| Page views, typical month          | 3,000     | single-city audience                                                       |
+| Page views, event month            | 9,000     | registration period plus event day                                         |
+| Database awake time, typical month | 55 hours  | see [Where the money goes](#where-the-money-actually-goes)                 |
 
 **Excluded:** staff time, the annual domain registration fee (see
 [Costs that are not AWS](#costs-that-are-not-aws)), and any service not currently
@@ -122,9 +122,14 @@ see [What is free, and why](#what-is-free-and-why).
 | CloudFront — data transfer + requests  | 7.2 GB / 227k req |          $0.12 / GB |      $1.16 |      $0.00 |
 | Lambda — application compute           |      5,403 GB-sec | $0.0000167 / GB-sec |      $0.09 |      $0.00 |
 | CloudWatch — logs and metrics          |        10 metrics |      $0.30 / metric |      $3.00 |      $0.00 |
-| SES — 65 confirmation emails           |         65 emails |    $0.00016 / email |      $0.01 |  **$0.01** |
+| Email — 65 confirmations               |         65 emails |    $0.00016 / email |      $0.01 |  **$0.01** |
 | Everything else                        |                 — |                   — |      $0.03 |  **$0.03** |
 | **Total**                              |                   |                     | **$23.69** | **$19.43** |
+
+The email line is priced at SES rates and left in the totals deliberately.
+Delivery currently goes through Resend, whose free tier covers this volume
+outright, so the real figure is a cent lower than shown — see
+[Email](#email--0-today-under-002month-on-ses).
 
 ### Annual
 
@@ -273,12 +278,19 @@ This line grows and never shrinks: there is no cleanup rule, and removing an
 image from an article leaves the file behind. At current volumes that is
 pennies, but see [Cost risks](#cost-risks-and-what-triggers-them).
 
-### SES — under $0.02/month
+### Email — $0 today, under $0.02/month on SES
 
-Sends exactly two kinds of email: a registration confirmation with the ticket
-link, and a welcome message when someone joins the newsletter. **One email per
-person per action** — there is no bulk send, no reminder, no digest. At $0.16
-per 1,000 emails, an event with 50 attendees costs **less than one cent**.
+Sends exactly two kinds of email: a registration confirmation carrying the
+ticket QR, and a welcome message when someone joins the newsletter. **One email
+per person per action** — there is no bulk send, no reminder, no digest.
+
+Delivery currently goes through **Resend**, whose free tier covers 3,000 emails
+a month and 100 a day, so this line is genuinely $0. The one way to exceed it is
+a single event drawing more than 100 registrations in one day; the paid tier
+above that is $20/month.
+
+On SES, at $0.16 per 1,000 emails, an event with 50 attendees costs **less than
+one cent**.
 
 The declared volume for AWS's approval was "low hundreds per month"; even at
 1,000 emails a month this line is $0.16.
@@ -346,17 +358,21 @@ steady state.
 
 ## Costs that are not AWS
 
-| Item                                         | Cost         | Note                                                                                                                                                                                                                            |
-| -------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `awsug.la` domain registration               | ~$30–90/year | Paid to an external `.la` registrar — Route 53 cannot register `.la` domains. **Confirm the actual renewal figure with whoever holds the registration; it is not visible from the code and is excluded from the totals above.** |
-| GitHub Actions (build and deploy automation) | **$0**       | The repository is public, and GitHub does not charge for standard runners on public repositories.                                                                                                                               |
-| Google Maps embed                            | **$0**       | Event pages embed a map with no API key and no Google Cloud account. See [Cost risks](#cost-risks-and-what-triggers-them).                                                                                                      |
-| Third-party software subscriptions           | **$0**       | There are none. No analytics, error tracking, email provider, CMS, payments or authentication service. Everything runs on AWS.                                                                                                  |
+| Item                                         | Cost         | Note                                                                                                                                                                                                                                                            |
+| -------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `awsug.la` domain registration               | ~$30–90/year | Paid to an external `.la` registrar — Route 53 cannot register `.la` domains. **Confirm the actual renewal figure with whoever holds the registration; it is not visible from the code and is excluded from the totals above.**                                 |
+| GitHub Actions (build and deploy automation) | **$0**       | The repository is public, and GitHub does not charge for standard runners on public repositories.                                                                                                                                                               |
+| Google Maps embed                            | **$0**       | Event pages embed a map with no API key and no Google Cloud account. See [Cost risks](#cost-risks-and-what-triggers-them).                                                                                                                                      |
+| Resend (email delivery)                      | **$0**       | Free tier covers 3,000 emails/month and 100/day. At the volumes in this document — one confirmation per registration — the daily cap is the binding one, and only if a single event draws more than 100 sign-ups in one day. The paid tier starts at $20/month. |
+| Other third-party subscriptions              | **$0**       | No analytics, error tracking, CMS, payments or authentication service. Everything else runs on AWS.                                                                                                                                                             |
 
-> **One correction for the record:** the project's `.env` file contains unused
-> `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` settings. They are
-> leftovers from an abandoned approach and no code reads them. **There is no
-> third-party email provider to budget for** — email goes through AWS SES.
+> **Updated:** email now goes through **Resend**, not SES, because SES
+> production access has not been granted and its sandbox only delivers to
+> individually verified addresses. `RESEND_API_KEY`, `MAIL_FROM_NAME` and
+> `MAIL_FROM_EMAIL` are live configuration; the SES adapter is still in place
+> and takes over when the key is cleared. The `SMTP_HOST`, `SMTP_USER`,
+> `SMTP_PASS` and `MAIL_FROM` entries in `.env` remain dead — no code reads
+> them, and they can be deleted.
 
 ---
 

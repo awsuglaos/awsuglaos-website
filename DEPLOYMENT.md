@@ -23,8 +23,8 @@ Already done, so skip Phases 1 and 2:
 
 - [x] AWS account, admin access
 - [x] GitHub OIDC identity provider and the deploy role
-- [x] SES set up — but check §5.1, the domain identity is better than the
-      single-address one now that the domain exists
+- [x] SES set up — but it is not the provider right now. Mail goes through
+      Resend until production access is granted; see Phase 5
 - [x] `awsug.la` registered, Route 53 hosted zone created, NS delegated
 
 Still to do: **[Phase 3](#phase-3--configure-the-repository)** onward — the
@@ -53,10 +53,12 @@ Verify current pricing before quoting these publicly.
 
 ### One thing is still not included
 
-**SES is in the sandbox** unless production access has been approved. Email only
-reaches addresses you have explicitly verified. See
-[Phase 5](#phase-5--email-ses) — it is the one hard blocker for running a real
-event.
+**Email needs a verified sending domain.** SES stays in its sandbox until
+production access is approved, and only delivers to addresses you have verified
+one by one — which is why sending currently goes through Resend instead. Either
+way, `awsug.la` has to be verified with the provider and its DKIM records
+published before a single confirmation reaches anyone. See
+[Phase 5](#phase-5--email).
 
 ---
 
@@ -349,11 +351,22 @@ Under the **Secrets** tab, **New repository secret**:
 
 Under the **Variables** tab, **New repository variable**:
 
-| Name               | Value              | Notes                                 |
-| ------------------ | ------------------ | ------------------------------------- |
-| `AWS_REGION`       | `ap-southeast-1`   |                                       |
-| `SITE_DOMAIN`      | `awsug.la`         | The **root** domain. Not a subdomain. |
-| `SES_FROM_ADDRESS` | `noreply@awsug.la` | Must be verified in SES — see Phase 5 |
+| Name               | Value                 | Notes                                      |
+| ------------------ | --------------------- | ------------------------------------------ |
+| `AWS_REGION`       | `ap-southeast-1`      |                                            |
+| `SITE_DOMAIN`      | `awsug.la`            | The **root** domain. Not a subdomain.      |
+| `MAIL_FROM_NAME`   | `AWS User Group Laos` | Sender name shown in the inbox             |
+| `MAIL_FROM_EMAIL`  | `noreply@awsug.la`    | Must be verified in Resend — see Phase 5   |
+| `SES_FROM_ADDRESS` | `noreply@awsug.la`    | Only used if Resend is unset — see Phase 5 |
+
+`RESEND_API_KEY` is **not** a repository variable. It is an SST secret, set once
+per stage from your own machine and stored in SSM:
+
+```bash
+npx sst secret set ResendApiKey re_xxxxxxxx --stage production
+```
+
+That keeps the key out of GitHub entirely. Deploys read it from SSM.
 
 > **`SITE_DOMAIN` is the root domain, and only the root domain.** Both stages
 > read the same variable and each derives its own host from it — production
@@ -393,12 +406,64 @@ For why the stack is shaped this way at all, see
 
 ---
 
-## Phase 5 — Email (SES)
+## Phase 5 — Email
+
+Mail goes through **Resend** while SES production access is pending, and through
+**SES** once it is granted. Both adapters ship; the choice is made at runtime by
+which environment variables are set, so switching is a config change and a
+redeploy, never a code change:
+
+```
+RESEND_API_KEY + MAIL_FROM_EMAIL  →  Resend
+SES_FROM_ADDRESS                  →  Amazon SES
+neither                           →  printed to the console
+```
+
+### 5.0 Resend — the path that works today
+
+SES starts in a sandbox that only delivers to individually verified addresses,
+and approval takes days. Resend has no sandbox, so this is what gets a real
+event out of the door.
+
+1. Create an account at [resend.com](https://resend.com) and add `awsug.la`
+   under **Domains**.
+2. Publish the DKIM and SPF records it gives you in Route 53. **Until these
+   resolve, `noreply@awsug.la` will not send** — the dashboard shows the domain
+   as Verified when they have propagated, usually within the hour.
+3. Create an API key with **Sending access** only.
+4. Set it as an SST secret, per stage:
+
+   ```bash
+   npx sst secret set ResendApiKey re_xxxxxxxx --stage production
+   ```
+
+5. Set the `MAIL_FROM_NAME` and `MAIL_FROM_EMAIL` repository variables (see the
+   table in Phase 4) and redeploy.
+
+Before announcing the event, send yourself the real thing and read it on a
+phone:
+
+```bash
+pnpm mail:send you@example.com
+```
+
+Check the spam folder too. A sending domain with no history lands there until it
+has built some reputation, and finding that out from an attendee is too late.
+
+The free tier covers 3,000 emails a month, which is far more than this site
+sends — see [COSTS.md](COSTS.md).
+
+### 5.1 SES — for when production access is granted
 
 You have already set SES up. Two things are worth revisiting now that the domain
-exists, and one is a hard blocker.
+exists.
 
-### 5.1 Verify the domain, not just an address
+To switch back once Amazon approves the account: clear the Resend secret
+(`npx sst secret remove ResendApiKey --stage production`) and redeploy. The SES
+configuration set, its bounce suppression and its CloudWatch event destination
+are all still wired and were never removed.
+
+#### Verify the domain, not just an address
 
 If you verified a single address (a Gmail one, say), switch to a **domain**
 identity. An unverified sending domain means no DKIM and no DMARC alignment, so
@@ -417,12 +482,12 @@ Then set the `SES_FROM_ADDRESS` variable to `noreply@awsug.la`. With a
 verified domain, any address at that domain can send — the mailbox does not have
 to exist.
 
-### 5.2 While sandboxed, verify your test recipients
+#### While sandboxed, verify your test recipients
 
 Add an email-address identity for every address you intend to test event
 registration with. Otherwise the send fails and the visitor sees nothing.
 
-### 5.3 Request production access
+#### Request production access
 
 If you have not already:
 
@@ -605,25 +670,28 @@ A green pipeline proves the infrastructure exists. It does not prove the parts
 talk to each other. Work through this in order — each step exercises a seam that
 nothing before it touched.
 
-| #   | Do this                                                     | Proves                                                 |
-| --- | ----------------------------------------------------------- | ------------------------------------------------------ |
-| 1   | Load `<SITE_URL>` and `<SITE_URL>/en`                       | CloudFront → SvelteKit Lambda                          |
-| 2   | Sign in at `/admin`                                         | Cognito hosted UI, the callback, ID token verification |
-| 3   | Create a speaker with a **photo upload**                    | Presigned S3 PUT, bucket CORS                          |
-| 4   | Reload the speaker page and confirm the photo displays      | **The `/uploads/*` CloudFront route**                  |
-| 5   | Create and publish an event                                 | Backoffice → API → Aurora over the Data API            |
-| 6   | Register for it as a visitor, with a verified email address | Public write path, capacity claim                      |
-| 7   | Open the ticket link and confirm the QR renders             | Ticket code generation                                 |
-| 8   | Check the registration email arrived                        | SES                                                    |
-| 9   | Scan the ticket at `/admin/checkin`                         | Check-in flow                                          |
-| 10  | Sign out, then sign in again                                | Cognito logout actually ended the session              |
+| #   | Do this                                                 | Proves                                                 |
+| --- | ------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | Load `<SITE_URL>` and `<SITE_URL>/en`                   | CloudFront → SvelteKit Lambda                          |
+| 2   | Sign in at `/admin`                                     | Cognito hosted UI, the callback, ID token verification |
+| 3   | Create a speaker with a **photo upload**                | Presigned S3 PUT, bucket CORS                          |
+| 4   | Reload the speaker page and confirm the photo displays  | **The `/uploads/*` CloudFront route**                  |
+| 5   | Create and publish an event                             | Backoffice → API → Aurora over the Data API            |
+| 6   | Register for it as a visitor, with a real email address | Public write path, capacity claim                      |
+| 7   | Open the ticket link and confirm the QR renders         | Ticket code generation                                 |
+| 8   | Check the registration email arrived, QR and all        | Resend (or SES), inline attachments                    |
+| 9   | Scan the ticket at `/admin/checkin`                     | Check-in flow                                          |
+| 10  | Sign out, then sign in again                            | Cognito logout actually ended the session              |
 
 **Step 4 is the one to watch.** An image that uploads successfully but shows as
 broken means the CloudFront route to the bucket is not resolving — see
 [Troubleshooting](#troubleshooting).
 
-**Step 8** only works if the recipient address is verified in SES while the
-account is sandboxed.
+**Step 8** needs the sending domain verified with whichever provider is
+configured. On SES, while the account is sandboxed, the _recipient_ address must
+be verified as well. Check that the QR renders inside the message and not just
+the button below it — and look in the spam folder before concluding nothing
+arrived.
 
 **Also worth one check:** `curl -sI https://staging.awsug.la | grep -i x-robots-tag`
 should return `noindex, nofollow`, and `/robots.txt` should read `Disallow: /`.

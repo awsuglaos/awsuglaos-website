@@ -344,6 +344,32 @@ export default $config({
 			}
 		});
 
+		/*
+		 * The Resend API key, while SES production access is pending.
+		 *
+		 * A secret rather than a plain `process.env` passthrough like the values
+		 * below it: those only have to exist in whoever's shell runs the deploy,
+		 * which for a key means putting it in GitHub Actions as well. This lives
+		 * in SSM under the stage and is set once:
+		 *
+		 *   npx sst secret set ResendApiKey <key> --stage production
+		 *
+		 * It is passed through as an environment variable rather than linked, so
+		 * the apps keep reading plain env and the local console path is unchanged.
+		 * Unset, `.value` is empty and both functions fall through to SES.
+		 */
+		const resendApiKey = new sst.Secret('ResendApiKey', '');
+
+		const mailEnvironment = {
+			RESEND_API_KEY: resendApiKey.value,
+			MAIL_FROM_NAME: process.env.MAIL_FROM_NAME ?? 'AWS User Group Laos',
+			MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL ?? '',
+			// Used only when RESEND_API_KEY is empty. Kept wired so approval is a
+			// secret change and a redeploy, not a code change.
+			SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
+			SES_CONFIGURATION_SET: emailConfigurationSet.configurationSetName
+		};
+
 		const apiEnvironment = {
 			// Ticket, feedback and unsubscribe links in outgoing email are built from
 			// this. Empty or wrong and every email ships a dead link.
@@ -353,8 +379,7 @@ export default $config({
 			DB_CLUSTER_ARN: database.clusterArn,
 			DB_SECRET_ARN: database.secretArn,
 			DB_NAME: database.database,
-			SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
-			SES_CONFIGURATION_SET: emailConfigurationSet.configurationSetName,
+			...mailEnvironment,
 			UPLOADS_BUCKET: uploads.name,
 			// UPLOADS_PUBLIC_URL is deliberately unset: image URLs are stored
 			// site-relative, so CloudFront serves /uploads/* from the site's own
@@ -441,8 +466,7 @@ export default $config({
 				DB_CLUSTER_ARN: database.clusterArn,
 				DB_SECRET_ARN: database.secretArn,
 				DB_NAME: database.database,
-				SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
-				SES_CONFIGURATION_SET: emailConfigurationSet.configurationSetName,
+				...mailEnvironment,
 				/*
 				 * Switches the app off its local filesystem upload stub. Without it
 				 * `usingLocalUploads()` stays true on Lambda, where the filesystem is

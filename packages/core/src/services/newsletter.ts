@@ -49,7 +49,8 @@ export async function subscribe(
 	try {
 		const template = newsletterWelcomeEmail(
 			locale,
-			buildUnsubscribeUrl(ctx.siteUrl, created.token)
+			buildUnsubscribeUrl(ctx.siteUrl, created.token),
+			ctx.siteUrl
 		);
 		await ctx.email.send({ to: created.email, ...template });
 	} catch (error) {

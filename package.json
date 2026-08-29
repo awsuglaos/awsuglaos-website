@@ -16,6 +16,8 @@
     "test:e2e": "turbo run test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "mail:preview": "pnpm --filter @awsug/core run mail:preview",
+    "mail:send": "pnpm --filter @awsug/core run mail:send",
     "db:generate": "pnpm --filter @awsug/db run generate",
     "db:migrate": "pnpm --filter @awsug/db run migrate",
     "db:seed": "pnpm --filter @awsug/db run seed",

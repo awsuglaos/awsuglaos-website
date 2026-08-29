@@ -1,3 +1,5 @@
+import { composeSender } from '@awsug/core';
+
 /**
  * On Lambda these arrive as real environment variables from SST resource
  * linking. Locally they come from the repo-root .env, loaded by src/dev.ts.
@@ -12,6 +14,11 @@ export interface ApiEnv {
 	ses?: {
 		from: string;
 		configurationSet?: string;
+	};
+	/** Takes precedence over `ses` while SES production access is pending. */
+	resend?: {
+		apiKey: string;
+		from: string;
 	};
 	uploads?: {
 		bucket: string;
@@ -43,6 +50,9 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): ApiEnv {
 	const uploadsBucket = source.UPLOADS_BUCKET;
 	const siteUrl = source.PUBLIC_SITE_URL ?? 'http://localhost:5173';
 
+	const resendApiKey = source.RESEND_API_KEY;
+	const mailFromEmail = source.MAIL_FROM_EMAIL;
+
 	return {
 		devAuth,
 		siteUrl,
@@ -64,6 +74,14 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): ApiEnv {
 						...(source.SES_CONFIGURATION_SET
 							? { configurationSet: source.SES_CONFIGURATION_SET }
 							: {})
+					}
+				}
+			: {}),
+		...(resendApiKey && mailFromEmail
+			? {
+					resend: {
+						apiKey: resendApiKey,
+						from: composeSender(source.MAIL_FROM_NAME, mailFromEmail)
 					}
 				}
 			: {})

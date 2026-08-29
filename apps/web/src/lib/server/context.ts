@@ -1,8 +1,10 @@
 import { env } from '$env/dynamic/private';
 import { env as publicEnv } from '$env/dynamic/public';
 import {
+	composeSender,
 	ConsoleEmailDispatcher,
 	LocalObjectStore,
+	ResendEmailDispatcher,
 	SesEmailDispatcher,
 	type AppContext,
 	type EmailDispatcher
@@ -10,9 +12,27 @@ import {
 import { createDatabase, resolveDbConfig } from '@awsug/db';
 import { resolve } from 'node:path';
 
+/**
+ * Resend first, SES second, console last.
+ *
+ * Resend wins so that moving between providers is one environment variable and
+ * no deploy of changed code: SES production access is still pending, and when
+ * it lands, clearing RESEND_API_KEY hands sending straight back to SES with
+ * its configuration set and bounce suppression intact.
+ *
+ * With neither configured we print to the console, which is what makes the
+ * whole app runnable with no provider account at all.
+ */
 function createEmailDispatcher(): EmailDispatcher {
-	// Without a verified SES sender we print to the console instead — which is
-	// what makes the whole app runnable before the AWS account exists.
+	const apiKey = env.RESEND_API_KEY;
+	const mailFrom = env.MAIL_FROM_EMAIL;
+	if (apiKey && mailFrom) {
+		return new ResendEmailDispatcher({
+			apiKey,
+			from: composeSender(env.MAIL_FROM_NAME, mailFrom)
+		});
+	}
+
 	const from = env.SES_FROM_ADDRESS;
 	if (!from) return new ConsoleEmailDispatcher();
 

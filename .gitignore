@@ -27,6 +27,9 @@ playwright/.cache/
 # local uploads (filesystem stub for S3 in dev)
 .uploads/
 
+# rendered email templates from `pnpm mail:preview`
+.mail-preview/
+
 # editor / OS
 .DS_Store
 Thumbs.db

@@ -3,6 +3,7 @@ import {
 	ConsoleEmailDispatcher,
 	LocalObjectStore,
 	LocalUserDirectory,
+	ResendEmailDispatcher,
 	S3ObjectStore,
 	SesEmailDispatcher,
 	type AppContext,
@@ -14,7 +15,9 @@ import { createDatabase, resolveDbConfig } from '@awsug/db';
 import { resolve } from 'node:path';
 import { readEnv, type ApiEnv } from './env.js';
 
+/** Resend first, SES second, console last — mirrors apps/web's context.ts. */
 function createEmailDispatcher(env: ApiEnv): EmailDispatcher {
+	if (env.resend) return new ResendEmailDispatcher(env.resend);
 	if (!env.ses) return new ConsoleEmailDispatcher();
 	return new SesEmailDispatcher({
 		from: env.ses.from,

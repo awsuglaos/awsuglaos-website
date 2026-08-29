@@ -18,6 +18,7 @@ import {
 } from '@awsug/shared';
 import { and, asc, eq, gt, isNotNull, or, sql } from 'drizzle-orm';
 import { currentTime, type AppContext } from '../context.js';
+import { renderTicketQr } from '../email/qr.js';
 import { registrationConfirmationEmail } from '../email/templates.js';
 import { isUniqueViolation } from '../util/db-errors.js';
 import { pickTranslation } from '../util/translation.js';
@@ -156,14 +157,32 @@ export async function registerForEvent(
 	 */
 	if (registration.email) {
 		try {
+			/*
+			 * The QR is embedded so an attendee with no signal at the door still
+			 * has it. Encoding it must never be the reason a confirmation goes
+			 * unsent, so a failure here drops the panel and leaves the message
+			 * with its ticket link — which is all it carried before.
+			 */
+			const qr = await renderTicketQr(registration.ticketCode).catch((error: unknown) => {
+				console.error('Ticket QR render failed', {
+					registrationId: registration.id,
+					error: error instanceof Error ? error.message : String(error)
+				});
+				return undefined;
+			});
+
 			const template = registrationConfirmationEmail({
 				locale,
+				siteUrl: ctx.siteUrl,
 				fullName: registration.fullName ?? registration.ticketCode,
 				eventTitle: translation?.title ?? event.slug,
 				startAt: event.startAt,
 				locationName: translation?.locationName ?? '',
 				ticketCode: registration.ticketCode,
-				ticketUrl
+				ticketUrl,
+				coverImageUrl: event.coverImageUrl,
+				...(translation?.description ? { description: translation.description } : {}),
+				...(qr ? { qr } : {})
 			});
 			await ctx.email.send({ to: registration.email, ...template });
 		} catch (error) {

@@ -124,8 +124,29 @@ There is no Cognito locally. With `DEV_AUTH=true`, any email that exists in the
 
 ### Email
 
-Without `SES_FROM_ADDRESS` set, confirmation emails are printed to the API/web
-console instead of sent. Nothing needs AWS to exercise the full flow.
+Three providers, chosen by environment and tried in this order:
+
+| Condition                            | Provider                       |
+| ------------------------------------ | ------------------------------ |
+| `RESEND_API_KEY` + `MAIL_FROM_EMAIL` | Resend                         |
+| `SES_FROM_ADDRESS`                   | Amazon SES                     |
+| neither                              | printed to the API/web console |
+
+Resend wins so that moving between providers is one environment variable rather
+than a code change — SES production access is still pending, and clearing
+`RESEND_API_KEY` hands sending straight back to SES. With neither set, nothing
+needs AWS to exercise the full flow.
+
+To work on the templates:
+
+```bash
+pnpm mail:preview               # renders every template + locale to .mail-preview/
+pnpm mail:send you@example.com  # sends them for real, through Resend
+```
+
+The preview is for iterating on layout and copy; the real send is the only way
+to find out what a mail client actually does with it. Both use the same
+fixtures, so what you see in the browser is what lands in the inbox.
 
 ---
 
