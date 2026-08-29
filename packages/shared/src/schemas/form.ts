@@ -31,6 +31,7 @@ export const QUESTION_TYPES = [
 	'number',
 	'date',
 	'yesNo',
+	'consent',
 	'email',
 	'phone',
 	'url'
@@ -257,6 +258,10 @@ function presentValueSchema(question: QuestionBlock): z.ZodType<Exclude<AnswerVa
 				.trim()
 				.regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a date');
 		case 'yesNo':
+		case 'consent':
+			// A checkbox posts the literal string "on"; a radio posts our own
+			// "yes"/"no"; a JSON client may send a real boolean. All three arrive
+			// here, so all three are accepted.
 			return z
 				.union([z.boolean(), z.enum(['yes', 'no', 'true', 'false', 'on'])])
 				.transform(
@@ -305,6 +310,19 @@ function answerFieldSchema(question: QuestionBlock): z.ZodType<AnswerValue> {
 	}
 
 	/*
+	 * An unticked checkbox submits nothing at all, so absence here means "no"
+	 * rather than "unanswered". Storing `false` instead of null keeps the
+	 * distinction the other types need — and makes a declined consent a real,
+	 * countable answer rather than a gap, which is the whole point of asking.
+	 */
+	if (question.type === 'consent') {
+		return z.preprocess(
+			(value) => (isBlank(value) ? false : value),
+			presentValueSchema(question)
+		) as z.ZodType<AnswerValue>;
+	}
+
+	/*
 	 * `.nullable()`, not `z.union([z.null(), schema])`.
 	 *
 	 * A union reports `invalid_union` and its own generic "Invalid input" at the
@@ -339,6 +357,26 @@ export function buildAnswersSchema(blocks: FormDefinition) {
 	return z.object(shape).superRefine((answers: Answers, ctx: z.RefinementCtx) => {
 		for (const question of questions) {
 			if (!question.required) continue;
+
+			/*
+			 * The one question type where "answered" is not the bar. A consent box
+			 * is asked precisely so that submitting without it is refused, and
+			 * `false` is a perfectly present value — the generic emptiness check
+			 * below would wave it straight through.
+			 */
+			if (question.type === 'consent') {
+				if (answers[question.id] !== true) {
+					ctx.addIssue({
+						code: 'custom',
+						path: [question.id],
+						// No label prefix: the label *is* the sentence being agreed to,
+						// and "I accept the terms and conditions is required" is not a
+						// sentence anyone wants to read.
+						message: 'Please tick this box to continue'
+					});
+				}
+				continue;
+			}
 
 			const value = answers[question.id];
 			const empty =

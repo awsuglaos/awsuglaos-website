@@ -56,6 +56,7 @@
 		{ type: 'number', label: 'Number' },
 		{ type: 'date', label: 'Date' },
 		{ type: 'yesNo', label: 'Yes / no' },
+		{ type: 'consent', label: 'Consent checkbox' },
 		{ type: 'email', label: 'Email' },
 		{ type: 'phone', label: 'Phone' },
 		{ type: 'url', label: 'Link' }

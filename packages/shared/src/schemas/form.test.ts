@@ -172,6 +172,61 @@ describe('buildAnswersSchema', () => {
 		expect(withRequired.safeParse({ tracks: ['A'] }).success).toBe(true);
 	});
 
+	describe('consent', () => {
+		const consentForm = (required: boolean) =>
+			buildAnswersSchema(
+				formDefinitionSchema.parse([
+					question({
+						id: 'terms',
+						type: 'consent',
+						label: 'I accept the terms and conditions',
+						required
+					})
+				] as FormDefinition)
+			);
+
+		it('refuses a required consent that was left unticked', () => {
+			// An unticked checkbox submits nothing at all, so this is the shape the
+			// server actually receives — not an explicit false.
+			const result = consentForm(true).safeParse({});
+
+			expect(result.success).toBe(false);
+			expect(result.error?.issues[0]?.path).toEqual(['terms']);
+		});
+
+		it('refuses a required consent that was explicitly declined', () => {
+			// The rule that separates consent from every other type: `false` is a
+			// present, non-empty value, so a generic required check would pass it.
+			expect(consentForm(true).safeParse({ terms: false }).success).toBe(false);
+		});
+
+		it('accepts a required consent that was ticked', () => {
+			// "on" is what a browser posts for a ticked box.
+			expect(consentForm(true).safeParse({ terms: 'on' }).data).toEqual({ terms: true });
+			expect(consentForm(true).safeParse({ terms: true }).data).toEqual({ terms: true });
+		});
+
+		it('stores an unticked optional consent as false rather than null', () => {
+			// A declined consent is an answer worth counting, not a gap.
+			expect(consentForm(false).safeParse({}).data).toEqual({ terms: false });
+		});
+
+		it('does not prefix the message with the label', () => {
+			// The label is the sentence being agreed to. "I accept the terms and
+			// conditions is required" is not a sentence anyone wants to read.
+			const message = consentForm(true).safeParse({}).error?.issues[0]?.message ?? '';
+			expect(message).not.toContain('I accept');
+			expect(message.length).toBeGreaterThan(0);
+		});
+
+		it('cannot be given a field role', () => {
+			const result = formDefinitionSchema.safeParse([
+				question({ id: 'terms', type: 'consent', label: 'I accept', role: 'name' })
+			]);
+			expect(result.success).toBe(false);
+		});
+	});
+
 	it('refuses a choice that is not on the list', () => {
 		const result = schema.safeParse({ ...valid, level: 'Expert' });
 

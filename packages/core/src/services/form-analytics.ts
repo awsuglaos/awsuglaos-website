@@ -175,7 +175,9 @@ function summariseQuestion(
 		return summary;
 	}
 
-	if (question.type === 'yesNo') {
+	// A consent box tallies the same way: it is a boolean, and how many people
+	// declined is exactly the number an organiser wants to see.
+	if (question.type === 'yesNo' || question.type === 'consent') {
 		for (const value of answered) {
 			if (value === true || value === 'yes' || value === 'true') summary.yes += 1;
 			else summary.no += 1;

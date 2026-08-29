@@ -117,17 +117,22 @@
 						<p class="text-muted-foreground text-sm">No answers yet.</p>
 					{:else if question.tallies.length > 0}
 						<BarList rows={question.tallies} caption={question.label} />
-					{:else if question.type === 'yesNo'}
+					{:else if question.type === 'yesNo' || question.type === 'consent'}
+						<!-- A consent box is still yes/no underneath, but "Yes / No" against
+						     a sentence like "I accept the terms" reads as a poll result
+						     rather than as who agreed. -->
+						{@const [yesLabel, noLabel] =
+							question.type === 'consent' ? ['Accepted', 'Declined'] : ['Yes', 'No']}
 						<BarList
 							caption={question.label}
 							rows={[
 								{
-									label: 'Yes',
+									label: yesLabel,
 									count: question.yes,
 									percent: Math.round((question.yes / question.answered) * 100)
 								},
 								{
-									label: 'No',
+									label: noLabel,
 									count: question.no,
 									percent: Math.round((question.no / question.answered) * 100)
 								}

@@ -87,6 +87,38 @@
 						required={block.required}
 						value={numberValue(block.id)}
 					/>
+				{:else if block.type === 'consent'}
+					<!--
+						A single box, with the label beside it rather than above: the label
+						is the sentence being agreed to, and putting a legend over a lone
+						checkbox reads as a heading for a list that never arrives.
+
+						`required` on the input is a courtesy that gets the browser to
+						block submission early. The rule that counts is in
+						`buildAnswersSchema`, which refuses anything but `true` — an
+						unticked box submits nothing at all, so a server that only checked
+						for presence would accept every decline.
+					-->
+					<label
+						for={name}
+						class="border-border hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm"
+					>
+						<input
+							id={name}
+							{name}
+							type="checkbox"
+							value="on"
+							checked={stringValue(block.id) === 'on'}
+							required={block.required}
+							aria-invalid={error ? 'true' : undefined}
+							aria-describedby={describedBy}
+							class="accent-primary mt-0.5 size-4 shrink-0"
+						/>
+						<span>
+							{block.label}
+							{#if block.required}<span class="text-destructive" aria-label="required">*</span>{/if}
+						</span>
+					</label>
 				{:else if block.type === 'radio' || block.type === 'yesNo' || block.type === 'checkboxes'}
 					{@const options = block.type === 'yesNo' ? [m.form_yes(), m.form_no()] : block.options}
 					{@const stored =
