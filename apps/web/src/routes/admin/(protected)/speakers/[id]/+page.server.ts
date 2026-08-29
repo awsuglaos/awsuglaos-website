@@ -1,7 +1,7 @@
 import { adminApi } from '$lib/server/admin';
 import { formValues, toAdminFailure, translationPathMapper, zodFail } from '$lib/server/form';
 import { parseSpeakerForm } from '$lib/server/parse-admin-forms';
-import { isDomainError, speakerInputSchema } from '@awsug/shared';
+import { isDomainError, speakerInputSchema, type RichTextDoc } from '@awsug/shared';
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -19,7 +19,7 @@ export interface AdminSpeakerDetail {
 		locale: 'lo' | 'en';
 		name: string;
 		title: string | null;
-		bio: string | null;
+		bio: RichTextDoc | null;
 	}[];
 }
 

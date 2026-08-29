@@ -366,7 +366,12 @@ export const speakerTranslations = pgTable(
 		// Lao page and transliterated on the English one.
 		name: varchar('name', { length: 160 }).notNull(),
 		title: varchar('title', { length: 160 }),
-		bio: text('bio')
+		/**
+		 * A TipTap document, same as article content and event descriptions — a
+		 * speaker with a long story to tell needs headings and lists, not one
+		 * paragraph. Nullable, because plenty of profiles have no bio at all.
+		 */
+		bio: jsonb('bio').$type<RichTextDoc>()
 	},
 	(t) => [
 		uniqueIndex('speaker_translations_speaker_locale_uq').on(t.speakerId, t.locale),

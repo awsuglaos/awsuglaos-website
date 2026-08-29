@@ -41,7 +41,7 @@
 			name: speaker.name,
 			...(speaker.title ? { jobTitle: speaker.title } : {}),
 			...(speaker.company ? { worksFor: { '@type': 'Organization', name: speaker.company } } : {}),
-			...(speaker.bio ? { description: speaker.bio.slice(0, 300) } : {}),
+			...(speaker.bioText ? { description: speaker.bioText.slice(0, 300) } : {}),
 			...(speaker.photoUrl ? { image: [speaker.photoUrl] } : {}),
 			url: canonical,
 			...(links.length > 0 ? { sameAs: links.map((link) => link.href) } : {}),
@@ -62,7 +62,7 @@
 
 <Seo
 	title={speaker.name}
-	description={speaker.bio?.slice(0, 160) ?? subtitle}
+	description={speaker.bioText.slice(0, 160) || subtitle}
 	image={speaker.photoUrl}
 />
 
@@ -120,8 +120,17 @@
 		</div>
 	</header>
 
-	{#if speaker.bio}
-		<p class="mt-9 max-w-[68ch] text-lg leading-relaxed text-pretty">{speaker.bio}</p>
+	<!--
+		`bioHtml` comes from renderRichText in packages/core, which renders the
+		stored TipTap document through our extension schema and then runs it through
+		sanitize-html. It is the only path by which a bio becomes markup, and it
+		always sanitises — see packages/core/src/content/render.ts.
+	-->
+	{#if speaker.bioHtml}
+		<div class="prose prose-neutral dark:prose-invert prose-lg mt-9 max-w-[68ch]">
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised server-side, see above -->
+			{@html speaker.bioHtml}
+		</div>
 	{/if}
 
 	<section class="mt-12">

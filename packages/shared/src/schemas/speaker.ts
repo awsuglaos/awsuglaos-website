@@ -1,13 +1,19 @@
 import { z } from 'zod';
 import { BASE_LOCALE, localeSchema } from '../locale.js';
 import { communityRoleSchema, imageUrlSchema, slugSchema, text } from '../primitives.js';
+import { richTextDocSchema } from '../rich-text.js';
 
 export const speakerTranslationInputSchema = z.object({
 	locale: localeSchema,
 	name: text(2, 160, 'Name'),
 	/** Role or job title, e.g. "Solutions Architect". */
 	title: text(0, 160, 'Title').optional(),
-	bio: text(0, 4000, 'Bio').optional()
+	/**
+	 * A TipTap document, like article content — but optional, so no emptiness
+	 * refinement: a profile with no bio is perfectly normal, and the service
+	 * stores an empty document as NULL.
+	 */
+	bio: richTextDocSchema.optional()
 });
 
 export const speakerInputSchema = z

@@ -389,8 +389,14 @@
 										{/if}
 										{#if speaker.abstract}
 											<p class="text-muted-foreground text-sm">{speaker.abstract}</p>
-										{:else if speaker.bio}
-											<p class="text-muted-foreground text-sm">{speaker.bio}</p>
+										{:else if speaker.bioText}
+											<!--
+												Clamped, and plain text rather than the bio's markup: a line-up
+												is a grid of uniform tiles, and one person's headings or images
+												would make their card twice the height of the rest. The whole
+												bio is a click away on the profile this card already links to.
+											-->
+											<p class="text-muted-foreground line-clamp-3 text-sm">{speaker.bioText}</p>
 										{/if}
 
 										{#if speaker.websiteUrl || speaker.linkedinUrl || speaker.githubUrl}

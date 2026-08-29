@@ -14,13 +14,17 @@ import {
 	COMMUNITY_ROLE_ORDER,
 	NotFoundError,
 	SlugTakenError,
+	isRichTextEmpty,
+	richTextToPlainText,
 	type CommunityRole,
 	type Locale,
+	type RichTextDoc,
 	type SetEventSpeakersInput,
 	type SetSpeakerOrderInput,
 	type SpeakerInput
 } from '@awsug/shared';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { renderRichText } from '../content/render.js';
 import { currentTime, type AppContext } from '../context.js';
 import { isUniqueViolation } from '../util/db-errors.js';
 import { pickTranslation } from '../util/translation.js';
@@ -35,6 +39,17 @@ function roleRank(column: typeof speakers.communityRole) {
 	)}]::text[], ${column}::text)`;
 }
 
+/**
+ * What actually goes in the column.
+ *
+ * The editor posts `{"type":"doc","content":[]}` for a field nobody touched,
+ * which is truthy and would be stored as a bio that renders as nothing. NULL is
+ * the honest representation, and it keeps every `{#if bio}` guard working.
+ */
+function storedBio(doc: RichTextDoc | undefined): RichTextDoc | null {
+	return doc && !isRichTextEmpty(doc) ? doc : null;
+}
+
 /** A speaker as shown on an event page, with their talk for that event. */
 export interface EventSpeakerView {
 	id: string;
@@ -42,7 +57,15 @@ export interface EventSpeakerView {
 	slug: string;
 	name: string;
 	title: string | null;
-	bio: string | null;
+	/**
+	 * The bio flattened to text, not its markup.
+	 *
+	 * A line-up card is a uniform tile, and it only shows this when there is no
+	 * talk abstract. Rendering a bio's headings, images and tables inside one
+	 * would make every card a different height. The full document is on the
+	 * profile page the card links to.
+	 */
+	bioText: string | null;
 	company: string | null;
 	photoUrl: string | null;
 	websiteUrl: string | null;
@@ -119,7 +142,7 @@ export async function createSpeaker(
 					locale: t.locale,
 					name: t.name,
 					title: t.title || null,
-					bio: t.bio || null
+					bio: storedBio(t.bio)
 				}))
 			)
 			.returning();
@@ -168,7 +191,7 @@ export async function updateSpeaker(
 					locale: t.locale,
 					name: t.name,
 					title: t.title || null,
-					bio: t.bio || null
+					bio: storedBio(t.bio)
 				}))
 			)
 			.returning();
@@ -223,7 +246,12 @@ export interface SpeakerCardView {
 	slug: string;
 	name: string;
 	title: string | null;
-	bio: string | null;
+	/*
+	 * No bio here on purpose. SpeakerCard renders a portrait, a name and a
+	 * caption — the bio moved to the profile page long ago (see the comment in
+	 * SpeakerCard.svelte), and now that it is a document there is no reason to
+	 * ship one per person to a directory that will not show it.
+	 */
 	company: string | null;
 	photoUrl: string | null;
 	communityRole: CommunityRole;
@@ -244,6 +272,14 @@ export interface SpeakerTalkView {
 }
 
 export interface SpeakerProfileView extends SpeakerCardView {
+	/**
+	 * The bio in all three shapes, exactly as ArticleView carries its content:
+	 * the stored document, the sanitised markup for the page, and flat text for
+	 * the meta description and structured data, where markup would be noise.
+	 */
+	bio: RichTextDoc | null;
+	bioHtml: string;
+	bioText: string;
 	talks: SpeakerTalkView[];
 }
 
@@ -257,7 +293,6 @@ function toCardView(row: SpeakerWithTranslations, locale: Locale): SpeakerCardVi
 		// than rendering a nameless card.
 		name: profile?.name ?? row.slug,
 		title: profile?.title ?? null,
-		bio: profile?.bio ?? null,
 		company: row.company,
 		photoUrl: row.photoUrl,
 		communityRole: row.communityRole,
@@ -370,7 +405,17 @@ export async function getSpeakerBySlug(
 		}
 	}
 
-	return { ...toCardView(row, locale), talks };
+	// `toCardView` picks the translation too, but the bio deliberately no longer
+	// travels on the card view — this is the one page that shows it.
+	const bio = pickTranslation(row.translations, locale)?.bio ?? null;
+
+	return {
+		...toCardView(row, locale),
+		bio,
+		bioHtml: renderRichText(bio),
+		bioText: richTextToPlainText(bio),
+		talks
+	};
 }
 
 /* -------------------------------------------------------------------------- */
@@ -406,7 +451,9 @@ export async function listEventSpeakers(
 			slug: row.speaker.slug,
 			name: profile?.name ?? row.speaker.slug,
 			title: profile?.title ?? null,
-			bio: profile?.bio ?? null,
+			// Already trimmed by richTextToPlainText; `|| null` keeps an empty
+			// document from rendering an empty paragraph on the card.
+			bioText: richTextToPlainText(profile?.bio) || null,
 			company: row.speaker.company,
 			photoUrl: row.speaker.photoUrl,
 			websiteUrl: row.speaker.websiteUrl,

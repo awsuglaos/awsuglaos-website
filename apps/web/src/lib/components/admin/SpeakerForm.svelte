@@ -1,21 +1,27 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { AdminFormState, fieldValue, type AdminFormResult } from '$lib/admin-form.svelte';
+	import {
+		AdminFormState,
+		fieldValue,
+		richTextValue,
+		type AdminFormResult
+	} from '$lib/admin-form.svelte';
 	import AdminField from '$lib/components/admin/admin-field.svelte';
 	import ImageField from '$lib/components/admin/ImageField.svelte';
+	import RichTextEditor from '$lib/components/admin/RichTextEditor.svelte';
 	import UnsavedGuard from '$lib/components/admin/unsaved-guard.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { Spinner } from '$lib/components/ui/spinner';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import type { RichTextDoc } from '@awsug/shared';
 
 	interface Translation {
 		locale: 'lo' | 'en';
 		name: string;
 		title: string | null;
-		bio: string | null;
+		bio: RichTextDoc | null;
 	}
 
 	interface Props {
@@ -182,13 +188,19 @@
 							</AdminField>
 						</div>
 
-						<AdminField {result} name="bio_{locale.code}" label="Bio">
+						<AdminField
+							{result}
+							name="bio_{locale.code}"
+							label="Bio"
+							description="Headings, lists, links and images — as much room as they need to tell their story."
+						>
 							{#snippet input({ props })}
-								<Textarea
-									{...props}
+								<RichTextEditor
+									name="bio_{locale.code}"
+									value={richTextValue(result, `bio_${locale.code}`, t.bio)}
+									label="Bio ({locale.name})"
 									lang={locale.code}
-									rows={3}
-									value={v(`bio_${locale.code}`, t.bio)}
+									describedBy={props['aria-describedby'] as string | undefined}
 								/>
 							{/snippet}
 						</AdminField>

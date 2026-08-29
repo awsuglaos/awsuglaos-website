@@ -4,9 +4,10 @@ import { field } from './form';
 
 /**
  * The rich text editor posts its document as a JSON string in a hidden field.
- * Malformed JSON becomes an empty document rather than an exception — the Zod
- * schema then rejects it with "Description is required", which is a far more
- * useful message than a parse error.
+ * Malformed JSON becomes an empty document rather than an exception — where the
+ * field is required the Zod schema then rejects it with "Description is
+ * required", which is a far more useful message than a parse error. Where it is
+ * optional, as a speaker bio is, an empty document is simply stored as no value.
  */
 function richTextField(data: FormData, name: string): RichTextDoc {
 	const raw = field(data, name);
@@ -87,7 +88,7 @@ export function parseSpeakerForm(data: FormData) {
 			locale,
 			name: field(data, `name_${locale}`) ?? '',
 			title: field(data, `title_${locale}`) ?? '',
-			bio: field(data, `bio_${locale}`) ?? ''
+			bio: richTextField(data, `bio_${locale}`)
 		})).filter((t) => t.name !== '')
 	};
 }

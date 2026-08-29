@@ -7,6 +7,16 @@ function richText(page: Page, name: string) {
 	return page.locator(`[data-editor="${name}"] .ProseMirror`);
 }
 
+/**
+ * The whole editor widget for one field — toolbar included.
+ *
+ * Scoped by the mount point's parent rather than by index: the bilingual forms
+ * put two editors on the page, so an unscoped "Heading 2" button is ambiguous.
+ */
+function richTextToolbar(page: Page, name: string) {
+	return page.locator(`div:has(> [data-editor="${name}"])`);
+}
+
 async function signIn(page: Page) {
 	await page.goto('/admin/login');
 	await page.getByLabel('Email address').fill(ADMIN_EMAIL);
@@ -145,6 +155,41 @@ test.describe('backoffice', () => {
 		await expect(
 			page.getByRole('list', { name: 'Organiser', exact: true }).getByRole('link')
 		).toHaveText(['ຄຳລ້າ ພິມມະສອນ']);
+	});
+
+	/**
+	 * A bio is a TipTap document now, and it lands in two very different places:
+	 * formatted on the profile, flattened and clamped on the line-up card of every
+	 * event that person spoke at. One flow walks both.
+	 */
+	test('writes a formatted bio and renders it on the profile and the line-up', async ({ page }) => {
+		await signIn(page);
+
+		await page.goto('/admin/speakers');
+		await page.getByRole('link', { name: 'ນະລິນທອນ ສີສຸວັນ' }).click();
+
+		const bio = richText(page, 'bio_en');
+		await bio.fill('E2E bio paragraph.');
+		// A heading proves the bio is stored as structure, not as the text of
+		// whatever the browser happened to render.
+		await bio.press('Enter');
+		await richTextToolbar(page, 'bio_en').getByRole('button', { name: 'Heading 2' }).click();
+		await bio.pressSequentially('Credentials');
+
+		await page.getByRole('button', { name: 'Save speaker' }).click();
+		await expect(page.getByText('Saved.')).toBeVisible();
+
+		await page.goto('/en/speakers/nalinthone-sisouvanh');
+		await expect(page.getByText('E2E bio paragraph.')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Credentials', level: 2 })).toBeVisible();
+
+		// The line-up card falls back to the bio — this appearance has a talk title
+		// but no abstract — and must show it flattened. The heading is text there,
+		// not a second <h2> competing with the page's own headings.
+		await page.goto('/en/events/aws-community-day-vientiane-2026');
+		const card = page.getByRole('listitem').filter({ hasText: 'Nalinthone Sisouvanh' });
+		await expect(card).toContainText('E2E bio paragraph.');
+		await expect(card.getByRole('heading', { name: 'Credentials' })).toHaveCount(0);
 	});
 
 	test('checks a ticket in and refuses the second scan', async ({ page }) => {

@@ -161,13 +161,31 @@ const speakerSeeds = [
 				locale: 'lo' as const,
 				name: 'ສົມໄຊ ວົງພະຈັນ',
 				title: 'ວິສະວະກອນ Cloud',
-				bio: 'ເຮັດວຽກດ້ານ Cloud ມາກວ່າ 8 ປີ ແລະ ເປັນຜູ້ຮ່ວມກໍ່ຕັ້ງກຸ່ມ AWS User Group Lao.'
+				// One bio with structure in it, so /speakers/[slug] renders something
+				// worth looking at straight after a seed.
+				bio: doc(
+					p('ເຮັດວຽກດ້ານ Cloud ມາກວ່າ 8 ປີ ແລະ ເປັນຜູ້ຮ່ວມກໍ່ຕັ້ງກຸ່ມ AWS User Group Lao.'),
+					h(2, 'ຄວາມສົນໃຈ'),
+					bullets([
+						'Serverless ແລະ ສະຖາປັດຕະຍະກຳແບບ event-driven',
+						'ການຍ້າຍລະບົບຂຶ້ນ Cloud',
+						'ການສ້າງຊຸມຊົນນັກພັດທະນາໃນລາວ'
+					])
+				)
 			},
 			{
 				locale: 'en' as const,
 				name: 'Somchai Vongphachanh',
 				title: 'Cloud Engineer',
-				bio: 'Eight years building on AWS, and a co-founder of AWS User Group Lao.'
+				bio: doc(
+					p('Eight years building on AWS, and a co-founder of AWS User Group Lao.'),
+					h(2, 'Interests'),
+					bullets([
+						'Serverless and event-driven architecture',
+						'Cloud migration',
+						'Growing the developer community in Laos'
+					])
+				)
 			}
 		]
 	},
@@ -183,13 +201,13 @@ const speakerSeeds = [
 				locale: 'lo' as const,
 				name: 'ນະລິນທອນ ສີສຸວັນ',
 				title: 'Solutions Architect',
-				bio: 'ຊ່ວຍລູກຄ້າໃນພາກພື້ນ ASEAN ອອກແບບລະບົບເທິງ AWS.'
+				bio: plainTextToRichText('ຊ່ວຍລູກຄ້າໃນພາກພື້ນ ASEAN ອອກແບບລະບົບເທິງ AWS.')
 			},
 			{
 				locale: 'en' as const,
 				name: 'Nalinthone Sisouvanh',
 				title: 'Solutions Architect',
-				bio: 'Helps customers across ASEAN design systems on AWS.'
+				bio: plainTextToRichText('Helps customers across ASEAN design systems on AWS.')
 			}
 		]
 	},
@@ -206,7 +224,7 @@ const speakerSeeds = [
 				locale: 'lo' as const,
 				name: 'ຄຳລ້າ ພິມມະສອນ',
 				title: 'ອາຈານສອນ',
-				bio: 'ສອນວິຊາຄອມພິວເຕີ ແລະ ນຳພານັກສຶກສາເຂົ້າສູ່ໂລກ Cloud.'
+				bio: plainTextToRichText('ສອນວິຊາຄອມພິວເຕີ ແລະ ນຳພານັກສຶກສາເຂົ້າສູ່ໂລກ Cloud.')
 			}
 		]
 	}

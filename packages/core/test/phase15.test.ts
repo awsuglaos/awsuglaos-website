@@ -1,11 +1,13 @@
 import { users } from '@awsug/db';
 import {
+	EMPTY_DOC,
 	FeedbackAlreadySubmittedError,
 	FeedbackNotOpenError,
 	LastAdminError,
 	NotFoundError,
 	SelfRoleChangeError,
-	UserExistsError
+	UserExistsError,
+	plainTextToRichText
 } from '@awsug/shared';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -23,12 +25,26 @@ function speaker(overrides: Record<string, unknown> = {}) {
 		slug: 'test-speaker',
 		photoUrl: '',
 		company: 'Example Co',
+		// Both carry Zod defaults, so SpeakerInput has them as required — the
+		// fixture has to supply what the schema would have filled in.
+		communityRole: 'none' as const,
+		sortOrder: 0,
 		websiteUrl: '',
 		linkedinUrl: '',
 		githubUrl: '',
 		translations: [
-			{ locale: 'lo' as const, name: 'ຜູ້ບັນຍາຍ', title: 'ວິສະວະກອນ', bio: 'ຊີວະປະຫວັດ' },
-			{ locale: 'en' as const, name: 'Test Speaker', title: 'Engineer', bio: 'Bio' }
+			{
+				locale: 'lo' as const,
+				name: 'ຜູ້ບັນຍາຍ',
+				title: 'ວິສະວະກອນ',
+				bio: plainTextToRichText('ຊີວະປະຫວັດ')
+			},
+			{
+				locale: 'en' as const,
+				name: 'Test Speaker',
+				title: 'Engineer',
+				bio: plainTextToRichText('Bio')
+			}
 		],
 		...overrides
 	};
@@ -69,7 +85,7 @@ describe('speakers', () => {
 		const created = await speakerService.createSpeaker(
 			ctx,
 			speaker({
-				translations: [{ locale: 'lo' as const, name: 'ມີແຕ່ລາວ', title: '', bio: '' }]
+				translations: [{ locale: 'lo' as const, name: 'ມີແຕ່ລາວ', title: '', bio: EMPTY_DOC }]
 			})
 		);
 
@@ -102,6 +118,78 @@ describe('speakers', () => {
 		const lineup = await speakerService.listEventSpeakers(ctx, event.id, 'en');
 		expect(lineup).toHaveLength(1);
 		expect(lineup[0]?.speakerId).toBe(second.id);
+	});
+
+	/**
+	 * A bio is a TipTap document, and the three shapes it is read back in each
+	 * have a job: the document for the editor, sanitised markup for the profile
+	 * page, and flat text for the meta description and the line-up card.
+	 */
+	it('renders a rich bio as sanitised markup and as flat text', async () => {
+		const ctx = await makeContext();
+		const bio = {
+			type: 'doc' as const,
+			content: [
+				{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'About me' }] },
+				{
+					type: 'paragraph',
+					content: [
+						{
+							type: 'text',
+							marks: [{ type: 'link', attrs: { href: 'https://example.la' } }],
+							text: 'My site'
+						}
+					]
+				}
+			]
+		};
+
+		await speakerService.createSpeaker(
+			ctx,
+			speaker({
+				slug: 'rich-bio',
+				translations: [{ locale: 'lo' as const, name: 'ຊີວະປະຫວັດ', title: '', bio }]
+			})
+		);
+
+		const profile = await speakerService.getSpeakerBySlug(ctx, 'rich-bio', 'lo');
+
+		expect(profile.bio).toEqual(bio);
+		expect(profile.bioHtml).toContain('<h2>About me</h2>');
+		// External links are given rel/target by the sanitiser, not by the editor.
+		expect(profile.bioHtml).toContain('rel="noopener noreferrer nofollow"');
+		// Flat text is what reaches <meta> and JSON-LD, so it must carry no markup.
+		expect(profile.bioText).toBe('About me\n\nMy site');
+		expect(profile.bioText).not.toContain('<');
+	});
+
+	/** An untouched editor posts an empty document; that is not a bio. */
+	it('stores an empty bio document as no bio at all', async () => {
+		const ctx = await makeContext();
+		const event = await eventService.createEvent(ctx, futureEvent());
+		const created = await speakerService.createSpeaker(
+			ctx,
+			speaker({
+				slug: 'no-bio',
+				translations: [
+					{ locale: 'lo' as const, name: 'ບໍ່ມີຊີວະປະຫວັດ', title: '', bio: EMPTY_DOC }
+				]
+			})
+		);
+
+		const profile = await speakerService.getSpeakerBySlug(ctx, 'no-bio', 'lo');
+		expect(profile.bio).toBeNull();
+		expect(profile.bioHtml).toBe('');
+		expect(profile.bioText).toBe('');
+
+		await speakerService.setEventSpeakers(ctx, event.id, {
+			speakers: [{ speakerId: created.id, sortOrder: 0, translations: [] }]
+		});
+
+		// The line-up card falls back to the bio when there is no abstract — an
+		// empty document must not produce an empty paragraph there.
+		const lineup = await speakerService.listEventSpeakers(ctx, event.id, 'lo');
+		expect(lineup[0]?.bioText).toBeNull();
 	});
 });
 

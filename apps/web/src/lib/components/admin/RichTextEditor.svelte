@@ -30,11 +30,17 @@
 		value?: RichTextDoc | null;
 		label?: string;
 		describedBy?: string;
+		/**
+		 * Language of the text being written, e.g. `lo`. Set it on bilingual forms
+		 * so the Lao and English editors sitting next to each other each pick the
+		 * right font and line breaking.
+		 */
+		lang?: string;
 		/** Called on every edit, with the document as it now stands. */
 		onChange?: (doc: RichTextDoc) => void;
 	}
 
-	let { name, value = null, label, describedBy, onChange }: Props = $props();
+	let { name, value = null, label, describedBy, lang, onChange }: Props = $props();
 
 	let element = $state<HTMLDivElement | null>(null);
 	let editor = $state<Editor | null>(null);
@@ -60,7 +66,8 @@
 			editorProps: {
 				attributes: {
 					class:
-						'prose prose-neutral dark:prose-invert max-w-none min-h-56 px-3 py-2 focus:outline-none'
+						'prose prose-neutral dark:prose-invert max-w-none min-h-56 px-3 py-2 focus:outline-none',
+					...(lang ? { lang } : {})
 				}
 			},
 			onTransaction: ({ editor: current }: { editor: Editor }) => {
