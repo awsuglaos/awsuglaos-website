@@ -1,22 +1,10 @@
+import type { Registrant } from '$lib/registrant';
 import { adminApi } from '$lib/server/admin';
 import { field } from '$lib/server/form';
-import { isDomainError, registrationStatusSchema, type RegistrationStatus } from '@awsug/shared';
+import { isDomainError, registrationStatusSchema } from '@awsug/shared';
 import { error, fail } from '@sveltejs/kit';
+import type { AdminEventDetail } from '../+page.server';
 import type { Actions, PageServerLoad } from './$types';
-
-interface Registrant {
-	id: string;
-	fullName: string | null;
-	email: string | null;
-	phone: string | null;
-	organisation: string | null;
-	ticketCode: string;
-	status: RegistrationStatus;
-	reviewedAt: string | null;
-	reviewNote: string | null;
-	checkedInAt: string | null;
-	createdAt: string;
-}
 
 interface Stats {
 	registered: number;
@@ -40,12 +28,7 @@ export const load: PageServerLoad = async ({ params, url, cookies, fetch }) => {
 
 	try {
 		const [event, registrations, stats] = await Promise.all([
-			client.get<{
-				id: string;
-				slug: string;
-				requiresApproval: boolean;
-				translations: { locale: string; title: string }[];
-			}>(`/admin/events/${params.id}`),
+			client.get<AdminEventDetail>(`/admin/events/${params.id}`),
 			client.get<Registrant[]>(
 				`/admin/events/${params.id}/registrations${status ? `?status=${status}` : ''}`
 			),

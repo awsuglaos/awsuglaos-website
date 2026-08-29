@@ -1,7 +1,12 @@
 import { adminApi } from '$lib/server/admin';
 import { formValues, toAdminFailure, translationPathMapper, zodFail } from '$lib/server/form';
 import { parseEventForm } from '$lib/server/parse-admin-forms';
-import { eventInputSchema, isDomainError, type RichTextDoc } from '@awsug/shared';
+import {
+	eventInputSchema,
+	isDomainError,
+	type FormDefinition,
+	type RichTextDoc
+} from '@awsug/shared';
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -16,6 +21,13 @@ export interface AdminEventDetail {
 	coverImageUrl: string | null;
 	requiresApproval: boolean;
 	status: 'draft' | 'published';
+	/*
+	 * `getEventById` returns the whole event row, so the form definition has
+	 * always come back with it. Declared because the registrants panel needs it
+	 * to know what each answer was a reply to — an answers map on its own is a
+	 * bag of ids.
+	 */
+	formSchema: FormDefinition;
 	translations: {
 		locale: 'lo' | 'en';
 		title: string;

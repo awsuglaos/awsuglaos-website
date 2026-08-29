@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PageHeader from '$lib/components/admin/page-header.svelte';
+	import RegistrantSheet from '$lib/components/admin/registrant-sheet.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -17,6 +18,8 @@
 	import Search from '@lucide/svelte/icons/search';
 	import Users from '@lucide/svelte/icons/users';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { pushState, replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 
 	let { data, form } = $props();
 	let query = $state('');
@@ -75,6 +78,82 @@
 	function toggleAll() {
 		if (allVisibleChosen) selected.clear();
 		else for (const r of filtered) selected.add(r.id);
+	}
+
+	/*
+	 * The panel is a piece of history, not component state: Back should close it,
+	 * and a URL an organiser copies out of the address bar should open it again
+	 * for whoever they send it to.
+	 *
+	 * Opening it is a shallow push, so `load` does not re-run and the list, the
+	 * stats and the event are not refetched to show answers that are already in
+	 * memory. The catch is that a shallow push does not move `page.url` — it
+	 * writes the address bar and `page.state` and nothing else — so the two are
+	 * read in that order: the state once the router has been driven, the query
+	 * string on first render, on a reload, and after a decision posts the page
+	 * back.
+	 */
+	let openId = $derived(
+		'registrant' in page.state
+			? (page.state.registrant ?? null)
+			: (page.url.searchParams.get('registration') ?? null)
+	);
+
+	// Looked up in the whole list rather than in `filtered`: typing in the search
+	// box must not shut a panel that is already open.
+	let openRegistrant = $derived(data.registrations.find((r) => r.id === openId) ?? null);
+
+	let listHref = $derived(`/admin/events/${data.event.id}/registrations`);
+
+	/*
+	 * Built by hand rather than through URLSearchParams. This runs once per row
+	 * on every render, and the reactive variant the linter would otherwise ask
+	 * for means minting signals each time for a string that is thrown away on
+	 * the next line.
+	 */
+	function linkQuery(id: string | null): string {
+		const pairs: string[] = [];
+		if (id) pairs.push(`registration=${encodeURIComponent(id)}`);
+		if (data.status) pairs.push(`status=${encodeURIComponent(data.status)}`);
+		return pairs.join('&');
+	}
+
+	function sheetHref(id: string | null): string {
+		const search = linkQuery(id);
+		return search ? `${listHref}?${search}` : listHref;
+	}
+
+	/*
+	 * A bare form action replaces the entire query string, so a decision taken
+	 * from the pending queue lands back on an unfiltered list with the panel
+	 * shut. SvelteKit picks the action out of the first search param whose name
+	 * starts with "/" and leaves everything after it alone — so the filter and
+	 * the open panel can ride along and arrive in `load`.
+	 */
+	let actionQuery = $derived.by(() => {
+		const search = linkQuery(openId);
+		return search ? `&${search}` : '';
+	});
+
+	function openSheet(event: MouseEvent, id: string) {
+		// A modified click is somebody asking for a new tab or a copied link.
+		// Leave it to the browser — that is what the href is still there for.
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+			return;
+		}
+		event.preventDefault();
+		pushState(sheetHref(id), { registrant: id });
+	}
+
+	function closeSheet() {
+		/*
+		 * Undo our own push rather than stack a second entry, so Back does not
+		 * walk straight into a panel the organiser has just closed. Arriving from
+		 * a shared link leaves nothing of ours to go back to — going back there
+		 * would leave the site — so the URL is replaced instead.
+		 */
+		if ('registrant' in page.state) history.back();
+		else replaceState(sheetHref(null), { registrant: null });
 	}
 
 	const stats = $derived([
@@ -162,7 +241,7 @@
 				selected
 			</p>
 
-			<form method="POST" action="?/approve" class="contents">
+			<form method="POST" action="?/approve{actionQuery}" class="contents">
 				{#each chosen as r (r.id)}
 					<input type="hidden" name="id" value={r.id} />
 				{/each}
@@ -172,7 +251,11 @@
 				</Button>
 			</form>
 
-			<form method="POST" action="?/reject" class="flex flex-1 flex-wrap items-end gap-3">
+			<form
+				method="POST"
+				action="?/reject{actionQuery}"
+				class="flex flex-1 flex-wrap items-end gap-3"
+			>
 				{#each chosen as r (r.id)}
 					<input type="hidden" name="id" value={r.id} />
 				{/each}
@@ -238,7 +321,20 @@
 							</Table.Cell>
 						{/if}
 						<Table.Cell class="font-medium">
-							{r.fullName ?? '—'}
+							<!--
+								The name is the link, so the checkbox and the decision buttons in
+								the same row stay ordinary controls. It keeps a real href — the
+								panel is a URL — so a middle-click still works, and it falls back
+								to the ticket code, because an em dash is not a click target and a
+								form with no name question leaves the code as the only identifier.
+							-->
+							<a
+								href={sheetHref(r.id)}
+								onclick={(event) => openSheet(event, r.id)}
+								class="hover:underline"
+							>
+								{r.fullName ?? r.ticketCode}
+							</a>
 							{#if r.organisation}
 								<span class="text-muted-foreground block text-xs">{r.organisation}</span>
 							{/if}
@@ -275,7 +371,7 @@
 								-->
 								<div class="flex justify-end gap-1">
 									{#if r.status !== 'approved'}
-										<form method="POST" action="?/approve">
+										<form method="POST" action="?/approve{actionQuery}">
 											<input type="hidden" name="id" value={r.id} />
 											<Button type="submit" size="sm" variant="ghost" title="Approve">
 												<CircleCheck data-icon="inline-start" />
@@ -284,7 +380,7 @@
 										</form>
 									{/if}
 									{#if r.status !== 'rejected'}
-										<form method="POST" action="?/reject">
+										<form method="POST" action="?/reject{actionQuery}">
 											<input type="hidden" name="id" value={r.id} />
 											<Button type="submit" size="sm" variant="ghost" title="Reject">
 												<CircleSlash data-icon="inline-start" />
@@ -314,3 +410,14 @@
 		</Table.Root>
 	</div>
 </Card.Root>
+
+<RegistrantSheet
+	registrant={openRegistrant}
+	open={openId !== null}
+	form={data.event.formSchema}
+	requiresApproval={data.event.requiresApproval}
+	{actionQuery}
+	unfilteredHref="{listHref}?registration={openId}"
+	result={form}
+	onClose={closeSheet}
+/>
