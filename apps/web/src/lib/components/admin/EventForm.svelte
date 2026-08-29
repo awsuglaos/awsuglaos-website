@@ -33,6 +33,7 @@
 			capacity: number;
 			locationUrl: string;
 			coverImageUrl: string | null;
+			requiresApproval: boolean;
 			status: 'draft' | 'published';
 			translations: Translation[];
 		};
@@ -61,6 +62,7 @@
 	];
 
 	let statusValue = $derived(v('status', event?.status ?? 'draft'));
+	let approvalValue = $derived(v('requiresApproval', event?.requiresApproval ? 'true' : 'false'));
 </script>
 
 <form
@@ -107,6 +109,30 @@
 									<option value="draft" selected={statusValue !== 'published'}>Draft</option>
 									<option value="published" selected={statusValue === 'published'}>
 										Published
+									</option>
+								</select>
+							{/snippet}
+						</AdminField>
+
+						<AdminField
+							{result}
+							name="requiresApproval"
+							label="Registration"
+							description="Approval only applies to registrations made from now on. Anyone already holding a ticket keeps it."
+						>
+							{#snippet input({ props })}
+								<!--
+									A select rather than a checkbox, for the same reason as Status
+									above and one more: an unchecked checkbox posts nothing at all,
+									so turning approval *off* would submit an absent field and be
+									indistinguishable from a form that never had it.
+								-->
+								<select {...props} class="native-select">
+									<option value="false" selected={approvalValue !== 'true'}>
+										Open — a ticket is issued immediately
+									</option>
+									<option value="true" selected={approvalValue === 'true'}>
+										Requires approval — an organiser decides
 									</option>
 								</select>
 							{/snippet}

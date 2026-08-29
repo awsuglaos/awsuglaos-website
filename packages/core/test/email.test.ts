@@ -6,7 +6,12 @@ import { renderTicketQr, TICKET_QR_CONTENT_ID } from '../src/email/qr.js';
 import { ResendEmailDispatcher } from '../src/email/resend.js';
 import { composeSender } from '../src/email/select.js';
 import { SesEmailDispatcher } from '../src/email/ses.js';
-import { newsletterWelcomeEmail, registrationConfirmationEmail } from '../src/email/templates.js';
+import {
+	newsletterWelcomeEmail,
+	registrationConfirmationEmail,
+	registrationDeclinedEmail,
+	registrationReceivedEmail
+} from '../src/email/templates.js';
 import type { EmailAttachment, EmailMessage } from '../src/email/types.js';
 
 const SITE_URL = 'https://awsug.la';
@@ -87,7 +92,6 @@ describe('registrationConfirmationEmail', () => {
 				expect(message.html).toContain('#8c52ff');
 				expect(message.html).not.toContain('#ff9900');
 			});
-
 		});
 	}
 
@@ -340,5 +344,91 @@ describe('local dispatchers', () => {
 		});
 		expect(log.mock.calls[0]?.[0]).toContain(QR.filename);
 		log.mockRestore();
+	});
+});
+
+describe('registrationReceivedEmail', () => {
+	const PENDING = {
+		siteUrl: SITE_URL,
+		fullName: BASE.fullName,
+		eventTitle: BASE.eventTitle,
+		startAt: BASE.startAt,
+		locationName: BASE.locationName
+	} as const;
+
+	for (const locale of ['lo', 'en'] as const) {
+		it(`says what happens next without promising a place (${locale})`, () => {
+			const message = registrationReceivedEmail({ locale, ...PENDING });
+			expect(message.subject).toContain(BASE.eventTitle);
+			// No ticket, no QR — there is no place yet, and a code here invites
+			// somebody to turn up with it.
+			expect(message.html).not.toContain(BASE.ticketCode);
+			expect(message.html).not.toContain('cid:ticket-qr');
+			expect(message.html).toContain(`cid:${BRAND_LOGO_CONTENT_ID}`);
+			expect(message.text.length).toBeGreaterThan(0);
+		});
+	}
+
+	it('escapes a name containing markup', () => {
+		const message = registrationReceivedEmail({
+			locale: 'en',
+			...PENDING,
+			fullName: '<script>alert(1)</script>'
+		});
+		expect(message.html).not.toContain('<script>');
+	});
+});
+
+describe('registrationDeclinedEmail', () => {
+	const DECLINED = {
+		siteUrl: SITE_URL,
+		fullName: BASE.fullName,
+		eventTitle: BASE.eventTitle,
+		startAt: BASE.startAt,
+		locationName: BASE.locationName
+	} as const;
+
+	for (const locale of ['lo', 'en'] as const) {
+		it(`reads on its own with no organiser note (${locale})`, () => {
+			const message = registrationDeclinedEmail({ locale, ...DECLINED });
+			expect(message.subject).toContain(BASE.eventTitle);
+			expect(message.text).not.toContain('undefined');
+			expect(message.text).not.toContain('null');
+			expect(message.html).not.toContain(BASE.ticketCode);
+		});
+	}
+
+	it('includes the note in both parts when there is one', () => {
+		const message = registrationDeclinedEmail({
+			locale: 'en',
+			...DECLINED,
+			note: 'We were oversubscribed'
+		});
+		expect(message.html).toContain('We were oversubscribed');
+		expect(message.text).toContain('We were oversubscribed');
+	});
+
+	it('treats a blank note as no note', () => {
+		const message = registrationDeclinedEmail({ locale: 'en', ...DECLINED, note: '   ' });
+		expect(message.text).not.toContain('From the organisers');
+	});
+
+	it('escapes a note containing markup', () => {
+		const message = registrationDeclinedEmail({
+			locale: 'en',
+			...DECLINED,
+			note: '<img src=x onerror=alert(1)>'
+		});
+		expect(message.html).not.toContain('<img src=x');
+		expect(message.html).toContain('&lt;img');
+	});
+
+	it('does not lead with the artwork of an event somebody was turned away from', () => {
+		const message = registrationDeclinedEmail({
+			locale: 'en',
+			...DECLINED,
+			coverImageUrl: '/uploads/cover.jpg'
+		});
+		expect(message.html).not.toContain('/uploads/cover.jpg');
 	});
 });

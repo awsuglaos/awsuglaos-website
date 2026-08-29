@@ -14,6 +14,7 @@ export interface AdminEventDetail {
 	registeredCount: number;
 	locationUrl: string;
 	coverImageUrl: string | null;
+	requiresApproval: boolean;
 	status: 'draft' | 'published';
 	translations: {
 		locale: 'lo' | 'en';

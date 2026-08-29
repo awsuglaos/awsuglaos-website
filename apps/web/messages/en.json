@@ -165,5 +165,15 @@
   "speaker_links": "Elsewhere",
   "role_leader": "Leader",
   "role_co_leader": "Co-leader",
-  "role_organiser": "Organiser"
+  "role_organiser": "Organiser",
+  "register_pending_title": "Registration received",
+  "register_pending_body": "This event is reviewed before places are confirmed. We have emailed {email} to confirm we have your registration, and we will email you again once an organiser has decided.",
+  "register_pending_body_no_email": "This event is reviewed before places are confirmed. An organiser will look at your registration — keep this page, it is the only link to it.",
+  "register_rejected_title": "Not approved",
+  "register_rejected_body": "We were not able to offer you a place at this event. If you think this is a mistake, reply to the email we sent you.",
+  "register_approval_notice": "Places at this event are approved by an organiser. You will get an email once your registration has been reviewed.",
+  "ticket_pending": "Awaiting approval",
+  "ticket_rejected": "Not approved",
+  "ticket_pending_hint": "Your QR code appears here once your place is approved.",
+  "register_error_not_approved": "This registration has not been approved."
 }

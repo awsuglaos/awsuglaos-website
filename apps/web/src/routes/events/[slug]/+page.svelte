@@ -586,7 +586,24 @@
 									<input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
 								</div>
 
-								<Button type="submit" size="lg" disabled={submitting} class="mt-7 w-full sm:w-auto">
+								<!--
+									Said next to the button rather than at the top of the form: this
+									is the moment somebody commits, and finding out only afterwards
+									that they were applying rather than booking is the version that
+									generates email.
+								-->
+								{#if event.requiresApproval}
+									<p class="text-muted-foreground mt-7 text-sm text-pretty">
+										{m.register_approval_notice()}
+									</p>
+								{/if}
+
+								<Button
+									type="submit"
+									size="lg"
+									disabled={submitting}
+									class="{event.requiresApproval ? 'mt-4' : 'mt-7'} w-full sm:w-auto"
+								>
 									{#if submitting}<Spinner data-icon="inline-start" />{/if}
 									{submitting ? m.register_submitting() : m.register_submit()}
 								</Button>

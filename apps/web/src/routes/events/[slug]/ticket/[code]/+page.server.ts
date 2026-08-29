@@ -24,13 +24,22 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 	 * nothing to clean up, no broken links if a ticket is reissued, and it prints
 	 * crisply at any size. The payload is the bare ticket code — uppercase
 	 * alphanumeric, so the encoder uses its compact alphanumeric mode.
+	 *
+	 * Null unless the registration is approved. On an approval event the ticket
+	 * URL is live from the moment somebody registers, but the code only means
+	 * something once a decision has been made — encoding one for a pending
+	 * applicant would hand a scannable pass to somebody with no place. The page
+	 * shows them where they stand instead.
 	 */
-	const qrSvg = await QRCode.toString(ticket.registration.ticketCode, {
-		type: 'svg',
-		margin: 1,
-		errorCorrectionLevel: 'M',
-		color: { dark: '#000000', light: '#ffffff' }
-	});
+	const qrSvg =
+		ticket.registration.status !== 'approved'
+			? null
+			: await QRCode.toString(ticket.registration.ticketCode, {
+					type: 'svg',
+					margin: 1,
+					errorCorrectionLevel: 'M',
+					color: { dark: '#000000', light: '#ffffff' }
+				});
 
 	// A ticket is personal data behind an unguessable URL — never cache it in a
 	// shared cache, and keep it out of search results.
@@ -52,6 +61,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 			fullName: ticket.registration.fullName,
 			email: ticket.registration.email,
 			ticketCode: ticket.registration.ticketCode,
+			status: ticket.registration.status,
 			checkedInAt: ticket.registration.checkedInAt
 		},
 		event: {

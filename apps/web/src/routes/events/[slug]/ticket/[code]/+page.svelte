@@ -7,10 +7,21 @@
 	import { localizeHref } from '$lib/paraglide/runtime';
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import CircleSlash from '@lucide/svelte/icons/circle-slash';
+	import Hourglass from '@lucide/svelte/icons/hourglass';
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import Printer from '@lucide/svelte/icons/printer';
 
 	let { data } = $props();
+
+	/*
+	 * The same URL serves all three states. On an approval event this page is
+	 * where the applicant lands the moment they register, long before anyone has
+	 * decided anything, so it has to be honest about which of the three it is
+	 * showing rather than always congratulating them.
+	 */
+	const status = $derived(data.registration.status);
+	const decided = $derived(status === 'approved');
 </script>
 
 <Seo title={m.ticket_title()} noindex />
@@ -18,12 +29,22 @@
 <section class="mx-auto max-w-lg px-4 py-12">
 	<div class="text-center print:hidden">
 		<span
-			class="bg-primary/10 text-primary mx-auto grid size-14 place-items-center rounded-full"
+			class="mx-auto grid size-14 place-items-center rounded-full {status === 'rejected'
+				? 'bg-muted text-muted-foreground'
+				: 'bg-primary/10 text-primary'}"
 			aria-hidden="true"
 		>
-			<CircleCheck class="size-7" />
+			{#if status === 'pending'}
+				<Hourglass class="size-7" />
+			{:else if status === 'rejected'}
+				<CircleSlash class="size-7" />
+			{:else}
+				<CircleCheck class="size-7" />
+			{/if}
 		</span>
-		<h1 class="mt-5 text-2xl font-bold tracking-tight">{m.register_success_title()}</h1>
+		<h1 class="mt-5 text-2xl font-bold tracking-tight">
+			{#if status === 'pending'}{m.register_pending_title()}{:else if status === 'rejected'}{m.register_rejected_title()}{:else}{m.register_success_title()}{/if}
+		</h1>
 		<p class="text-muted-foreground mt-2 text-sm text-pretty">
 			<!--
 				An event whose form has no email question issues a ticket with nowhere
@@ -31,9 +52,17 @@
 				it would be worse than saying nothing, so the page tells the truth
 				instead: this is the ticket, keep it.
 			-->
-			{data.registration.email
-				? m.register_success_body({ email: data.registration.email })
-				: m.register_success_body_no_email()}
+			{#if status === 'pending'}
+				{data.registration.email
+					? m.register_pending_body({ email: data.registration.email })
+					: m.register_pending_body_no_email()}
+			{:else if status === 'rejected'}
+				{m.register_rejected_body()}
+			{:else}
+				{data.registration.email
+					? m.register_success_body({ email: data.registration.email })
+					: m.register_success_body_no_email()}
+			{/if}
 		</p>
 	</div>
 
@@ -84,15 +113,32 @@
 				modules brighter than the dark ones, and inverting it in dark mode
 				makes the code unreadable to most phone cameras.
 			-->
-			<div class="rounded-lg bg-white p-3 [&_svg]:size-44">
+			{#if data.qrSvg}
+				<div class="rounded-lg bg-white p-3 [&_svg]:size-44">
+					<!--
+						Safe: qrSvg is SVG markup produced by the `qrcode` encoder on the
+						server from a ULID ticket code — [0-9A-HJKMNP-TV-Z]{26}. No user
+						input reaches it, so there is nothing here to escape.
+					-->
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- server-generated SVG, see above -->
+					{@html data.qrSvg}
+				</div>
+			{:else}
 				<!--
-					Safe: qrSvg is SVG markup produced by the `qrcode` encoder on the
-					server from a ULID ticket code — [0-9A-HJKMNP-TV-Z]{26}. No user
-					input reaches it, so there is nothing here to escape.
+					Holds the QR's footprint so an undecided ticket keeps the shape of
+					the object it will become, rather than collapsing into something
+					that reads as broken.
 				-->
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -- server-generated SVG, see above -->
-				{@html data.qrSvg}
-			</div>
+				<div
+					class="border-border text-muted-foreground grid size-44 place-items-center rounded-lg border border-dashed p-4 text-center"
+				>
+					{#if status === 'pending'}
+						<span class="text-xs text-pretty">{m.ticket_pending_hint()}</span>
+					{:else}
+						<CircleSlash class="size-8" aria-hidden="true" />
+					{/if}
+				</div>
+			{/if}
 
 			<div class="text-center">
 				<p class="text-muted-foreground text-xs tracking-wide uppercase">
@@ -105,7 +151,11 @@
 
 			<p class="text-sm font-medium">{data.registration.fullName ?? m.ticket_no_name()}</p>
 
-			{#if data.registration.checkedInAt}
+			{#if status === 'pending'}
+				<Badge variant="outline">{m.ticket_pending()}</Badge>
+			{:else if status === 'rejected'}
+				<Badge variant="outline">{m.ticket_rejected()}</Badge>
+			{:else if data.registration.checkedInAt}
 				<Badge variant="secondary">{m.ticket_checked_in()}</Badge>
 			{:else}
 				<Badge variant="outline">{m.ticket_not_checked_in()}</Badge>
@@ -113,7 +163,7 @@
 		</div>
 	</div>
 
-	{#if data.feedbackOpen}
+	{#if data.feedbackOpen && decided}
 		<div class="border-border mt-6 rounded-xl border border-dashed p-6 text-center print:hidden">
 			<p class="text-sm font-medium">{m.feedback_title()}</p>
 			<p class="text-muted-foreground mt-1 text-sm text-pretty">{m.feedback_intro()}</p>
@@ -127,10 +177,13 @@
 	{/if}
 
 	<div class="mt-6 flex flex-wrap justify-center gap-3 print:hidden">
-		<Button variant="outline" onclick={() => window.print()}>
-			<Printer data-icon="inline-start" />
-			{m.ticket_print()}
-		</Button>
+		<!-- Nothing to print until there is a code on it worth carrying. -->
+		{#if decided}
+			<Button variant="outline" onclick={() => window.print()}>
+				<Printer data-icon="inline-start" />
+				{m.ticket_print()}
+			</Button>
+		{/if}
 		<Button variant="ghost" href={localizeHref(`/events/${data.event.slug}`)}>
 			{m.event_back()}
 		</Button>

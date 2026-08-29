@@ -26,6 +26,8 @@ import {
 	setEventSpeakersInputSchema,
 	setSpeakerOrderInputSchema,
 	setEventSponsorsInputSchema,
+	registrationStatusSchema,
+	reviewRegistrationsInputSchema,
 	setSiteFeedbackStatusInputSchema,
 	siteFeedbackStatusSchema,
 	speakerInputSchema,
@@ -151,9 +153,30 @@ admin.delete('/events/:id', requireRole('admin'), async (c) => {
 	return c.body(null, 204);
 });
 
-admin.get('/events/:id/registrations', async (c) =>
-	c.json(await registrationService.listRegistrations(await getContext(), c.req.param('id')))
-);
+admin.get('/events/:id/registrations', async (c) => {
+	// An unparseable ?status= is ignored rather than rejected: the queue
+	// listing is a read, and showing everything is a safe answer to a bad filter.
+	const status = registrationStatusSchema.safeParse(c.req.query('status'));
+	return c.json(
+		await registrationService.listRegistrations(
+			await getContext(),
+			c.req.param('id'),
+			status.success ? status.data : undefined
+		)
+	);
+});
+
+admin.post('/events/:id/registrations/review', requireRole('editor'), async (c) => {
+	const input = await body(c, reviewRegistrationsInputSchema);
+	return c.json(
+		await registrationService.reviewRegistrations(
+			await getContext(),
+			c.req.param('id'),
+			input,
+			currentUser(c).id
+		)
+	);
+});
 
 admin.get('/events/:id/stats', async (c) =>
 	c.json(await registrationService.getEventStats(await getContext(), c.req.param('id')))

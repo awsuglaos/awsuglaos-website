@@ -24,6 +24,12 @@ export const eventInputSchema = z
 		/** Required: every venue is pinned on Google Maps and embedded on the page. */
 		locationUrl: googleMapsUrlSchema,
 		coverImageUrl: imageUrlSchema.optional(),
+		/*
+		 * Gates new registrations behind an organiser decision. Only ever affects
+		 * registrations made *after* it is switched on — anyone already holding a
+		 * ticket keeps it, because the status column defaults to `approved`.
+		 */
+		requiresApproval: z.coerce.boolean().default(false),
 		status: publishStatusSchema,
 		translations: z.array(eventTranslationInputSchema).min(1, 'At least one language is required')
 	})

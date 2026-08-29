@@ -37,6 +37,8 @@ export function parseEventForm(data: FormData) {
 		locationUrl: field(data, 'locationUrl') ?? '',
 		coverImageUrl: field(data, 'coverImageUrl') ?? '',
 		status: field(data, 'status') ?? 'draft',
+		// A native select, so the value is always posted — see EventForm.svelte.
+		requiresApproval: field(data, 'requiresApproval') === 'true',
 		translations: LOCALES.map((locale) => ({
 			locale,
 			title: field(data, `title_${locale}`) ?? '',

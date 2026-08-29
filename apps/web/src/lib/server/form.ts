@@ -147,7 +147,8 @@ export function translationPathMapper(input: {
 const registrationMessages: Partial<Record<DomainErrorCode, () => string>> = {
 	event_full: m.register_error_full,
 	already_registered: m.register_error_duplicate,
-	registration_closed: m.register_error_closed
+	registration_closed: m.register_error_closed,
+	registration_not_approved: m.register_error_not_approved
 };
 
 /** Maps a domain error to a localized form failure. */

@@ -36,6 +36,7 @@ export interface EventView {
 	/** Ready-to-use iframe src, or null when there is nothing to show. */
 	mapEmbedUrl: string | null;
 	coverImageUrl: string | null;
+	requiresApproval: boolean;
 	capacity: number;
 	registeredCount: number;
 	status: 'draft' | 'published';
@@ -81,7 +82,7 @@ function toPublicForm(blocks: FormDefinition): PublicFormBlock[] {
 	);
 }
 
-type EventWithTranslations = Event & { translations: EventTranslation[] };
+export type EventWithTranslations = Event & { translations: EventTranslation[] };
 
 /**
  * Registration state is always derived, never stored, so it cannot drift out of
@@ -127,6 +128,7 @@ function toView(event: EventWithTranslations, locale: Locale, now: Date): EventV
 			locationName: t.locationName
 		}),
 		coverImageUrl: event.coverImageUrl,
+		requiresApproval: event.requiresApproval,
 		capacity: event.capacity,
 		registeredCount: event.registeredCount,
 		status: event.status,
@@ -269,6 +271,7 @@ export async function createEvent(
 					locationLat: location.coordinates?.lat ?? null,
 					locationLng: location.coordinates?.lng ?? null,
 					coverImageUrl: row.coverImageUrl || null,
+					requiresApproval: row.requiresApproval,
 					// Seeded rather than left empty, so a new event has the same
 					// registration form the site has always had and an organiser opts
 					// *into* changing it rather than having to build one first.
@@ -313,6 +316,7 @@ export async function updateEvent(
 					locationLat: location.coordinates?.lat ?? null,
 					locationLng: location.coordinates?.lng ?? null,
 					coverImageUrl: row.coverImageUrl || null,
+					requiresApproval: row.requiresApproval,
 					updatedAt: currentTime(ctx)
 				})
 				.where(eq(events.id, id))
@@ -340,12 +344,18 @@ export async function deleteEvent(ctx: AppContext, id: string): Promise<void> {
 	if (deleted.length === 0) throw new NotFoundError('Event');
 }
 
-/** Recomputes registeredCount from the registrations table. Repair tool. */
+/**
+ * Recomputes registeredCount from the registrations table. Repair tool.
+ *
+ * Counts approved rows only, matching what claims and releases a seat. Without
+ * the filter this would quietly re-inflate the counter with every pending and
+ * rejected application the moment anyone ran it.
+ */
 export async function recountRegistrations(ctx: AppContext, eventId: string): Promise<number> {
 	const [row] = await ctx.db
 		.update(events)
 		.set({
-			registeredCount: sql`(SELECT count(*)::int FROM registrations WHERE registrations.event_id = ${eventId})`,
+			registeredCount: sql`(SELECT count(*)::int FROM registrations WHERE registrations.event_id = ${eventId} AND registrations.status = 'approved')`,
 			updatedAt: new Date()
 		})
 		.where(eq(events.id, eventId))

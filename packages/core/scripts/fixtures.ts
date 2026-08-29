@@ -1,6 +1,11 @@
 import type { Locale, RichTextDoc } from '@awsug/shared';
 import { renderTicketQr } from '../src/email/qr.js';
-import { newsletterWelcomeEmail, registrationConfirmationEmail } from '../src/email/templates.js';
+import {
+	newsletterWelcomeEmail,
+	registrationConfirmationEmail,
+	registrationDeclinedEmail,
+	registrationReceivedEmail
+} from '../src/email/templates.js';
 import type { EmailMessage } from '../src/email/types.js';
 
 /**
@@ -71,8 +76,40 @@ export async function sampleMessages(
 		SITE_URL
 	);
 
+	const pending = {
+		locale,
+		siteUrl: SITE_URL,
+		fullName: NAME[locale === 'lo' ? 'lo' : 'en'],
+		eventTitle: event.title,
+		startAt: new Date('2026-09-19T09:00:00+07:00'),
+		locationName: event.location,
+		coverImageUrl: COVER_IMAGE_URL
+	};
+
 	return [
 		{ id: `registration-${locale}`, to: 'attendee@example.com', ...registration },
+		{
+			id: `received-${locale}`,
+			to: 'attendee@example.com',
+			...registrationReceivedEmail(pending)
+		},
+		{
+			id: `declined-${locale}`,
+			to: 'attendee@example.com',
+			...registrationDeclinedEmail({
+				...pending,
+				note:
+					locale === 'lo'
+						? 'ຄັ້ງນີ້ມີຜູ້ລົງທະບຽນຫຼາຍກວ່າບ່ອນນັ່ງທີ່ມີ.'
+						: 'We had more registrations than seats this time.'
+			})
+		},
+		// Without a note, which is the version that has to stand on its own.
+		{
+			id: `declined-plain-${locale}`,
+			to: 'attendee@example.com',
+			...registrationDeclinedEmail(pending)
+		},
 		{ id: `newsletter-${locale}`, to: 'subscriber@example.com', ...newsletter }
 	];
 }

@@ -1,6 +1,8 @@
 import {
+	BASE_LOCALE,
 	LOCALES,
 	publishStatusSchema,
+	registrationStatusSchema,
 	resourceKindSchema,
 	siteFeedbackStatusSchema,
 	communityRoleSchema,
@@ -11,6 +13,7 @@ import {
 	type FormDefinition,
 	type Locale,
 	type PublishStatus,
+	type RegistrationStatus,
 	type ResourceKind,
 	type RichTextDoc,
 	type SiteFeedbackStatus,
@@ -169,6 +172,12 @@ export const events = pgTable(
 		capacity: integer('capacity').notNull().default(0),
 		registeredCount: integer('registered_count').notNull().default(0),
 		coverImageUrl: text('cover_image_url'),
+		/**
+		 * When set, a new registration lands as `pending` and claims no seat until
+		 * an organiser approves it. Off by default, and switching it on leaves
+		 * existing registrations approved — see the note on `registrations.status`.
+		 */
+		requiresApproval: boolean('requires_approval').notNull().default(false),
 		status: text('status').$type<PublishStatus>().notNull().default('draft'),
 		/**
 		 * The registration form, as an ordered list of blocks. See
@@ -249,6 +258,31 @@ export const registrations = pgTable(
 		/** Every answer, keyed by the question's block id. */
 		answers: jsonb('answers').$type<Answers>().notNull().default({}),
 		ticketCode: varchar('ticket_code', { length: 32 }).notNull().unique(),
+		/*
+		 * The language the person registered in, so mail sent later still reaches
+		 * them in it. Registration email is sent in the request's locale, but an
+		 * approval or rejection is written days afterwards from the backoffice,
+		 * where there is no visitor locale in scope — without this column every
+		 * decision email would go out in the base locale regardless of who it was
+		 * for. `newsletterSubs` and `siteFeedback` store it for the same reason.
+		 */
+		locale: text('locale').$type<Locale>().notNull().default(BASE_LOCALE),
+		/*
+		 * Defaulting to `approved` is what makes this column additive. Every row
+		 * that existed before it, and every registration on an event that does not
+		 * require approval, is approved without anything having to say so — only
+		 * the approval path writes `pending`. It also means switching approval on
+		 * mid-event cannot invalidate a ticket somebody is already holding.
+		 *
+		 * The seat follows this column, not the row: `registeredCount` counts
+		 * approved registrations only. See services/registrations.ts.
+		 */
+		status: text('status').$type<RegistrationStatus>().notNull().default('approved'),
+		/** Who decided, and when. A queue with no accountability is not one. */
+		reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+		reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+		/** Optional organiser note, shown to the applicant when they are rejected. */
+		reviewNote: text('review_note'),
 		checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
@@ -256,7 +290,11 @@ export const registrations = pgTable(
 		// One registration per email per event. Lower-cased at the index level so a
 		// direct DB write cannot bypass the normalisation the Zod schema applies.
 		uniqueIndex('registrations_event_email_uq').on(t.eventId, sql`lower(${t.email})`),
-		index('registrations_event_idx').on(t.eventId)
+		index('registrations_event_idx').on(t.eventId),
+		check('registrations_locale_valid', oneOf('locale', LOCALES)),
+		// The queue is read one event at a time, filtered by status, oldest first.
+		index('registrations_event_status_created_idx').on(t.eventId, t.status, t.createdAt),
+		check('registrations_status_valid', oneOf('status', registrationStatusSchema.options))
 	]
 );
 

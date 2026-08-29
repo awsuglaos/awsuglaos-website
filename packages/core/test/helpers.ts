@@ -74,6 +74,7 @@ export function futureEvent(overrides: Record<string, unknown> = {}) {
 		endAt: new Date(start.getTime() + 3 * 3_600_000),
 		capacity: 10,
 		status: 'published' as const,
+		requiresApproval: false,
 		locationUrl: '',
 		coverImageUrl: '',
 		translations: [

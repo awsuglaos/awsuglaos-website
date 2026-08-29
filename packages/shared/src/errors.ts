@@ -10,6 +10,7 @@ export type DomainErrorCode =
 	| 'registration_closed'
 	| 'already_registered'
 	| 'already_checked_in'
+	| 'registration_not_approved'
 	| 'slug_taken'
 	| 'forbidden'
 	| 'unauthorized'
@@ -81,6 +82,26 @@ export class AlreadyCheckedInError extends DomainError {
 		super('already_checked_in', 'This ticket has already been checked in', 409, {
 			checkedInAt: checkedInAt.toISOString()
 		});
+	}
+}
+
+/**
+ * The ticket exists but its registration has not been approved.
+ *
+ * Ticket codes are minted at registration, before any decision is made, so on
+ * an approval event a pending applicant is holding a real code. Without this
+ * guard they could scan their way in before anyone had said yes.
+ */
+export class RegistrationNotApprovedError extends DomainError {
+	constructor(status: string) {
+		super(
+			'registration_not_approved',
+			status === 'rejected'
+				? 'This registration was not approved'
+				: 'This registration is still awaiting approval',
+			409,
+			{ status }
+		);
 	}
 }
 

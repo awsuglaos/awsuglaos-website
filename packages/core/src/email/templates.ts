@@ -190,6 +190,180 @@ export function registrationConfirmationEmail(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Approval: received, and declined                                           */
+/* -------------------------------------------------------------------------- */
+
+interface PendingEmailParams {
+	locale: Locale;
+	siteUrl: string;
+	fullName: string;
+	eventTitle: string;
+	startAt: Date;
+	locationName: string;
+	coverImageUrl?: string | null;
+}
+
+const RECEIVED_COPY = {
+	lo: {
+		subject: (title: string) => `ໄດ້ຮັບການລົງທະບຽນຂອງທ່ານແລ້ວ — ${title}`,
+		preheader: 'ພວກເຮົາກຳລັງກວດສອບ ແລະ ຈະແຈ້ງຜົນໃຫ້ທ່ານຊາບ.',
+		heading: 'ໄດ້ຮັບການລົງທະບຽນຂອງທ່ານແລ້ວ',
+		greeting: (name: string) => `ສະບາຍດີ ${name},`,
+		intro: (title: string) =>
+			`ພວກເຮົາໄດ້ຮັບການລົງທະບຽນຂອງທ່ານສຳລັບ <strong>${title}</strong> ແລ້ວ.`,
+		body: 'ງານນີ້ມີການກວດສອບກ່ອນຢືນຢັນ. ຜູ້ຈັດຈະກວດເບິ່ງ ແລະ ພວກເຮົາຈະສົ່ງອີເມວແຈ້ງຜົນໃຫ້ທ່ານ. ຖ້າໄດ້ຮັບການອະນຸມັດ ທ່ານຈະໄດ້ຮັບປີ້ ພ້ອມ QR code ສຳລັບລົງທະບຽນເຂົ້າ.',
+		note: 'ຍັງບໍ່ຕ້ອງເຮັດຫຍັງເພີ່ມ.',
+		when: 'ວັນທີ',
+		where: 'ສະຖານທີ່',
+		closing: 'ຂອບໃຈ,',
+		signature: 'AWS User Group Laos'
+	},
+	en: {
+		subject: (title: string) => `We have your registration — ${title}`,
+		preheader: "We're reviewing it and will let you know.",
+		heading: 'We have your registration',
+		greeting: (name: string) => `Hello ${name},`,
+		intro: (title: string) => `Thanks for registering for <strong>${title}</strong>.`,
+		body: 'This event is reviewed before places are confirmed. An organiser will look at your registration and we will email you either way. If you are approved, that email carries your ticket and the QR code you check in with.',
+		note: 'There is nothing else for you to do right now.',
+		when: 'When',
+		where: 'Where',
+		closing: 'Thanks,',
+		signature: 'AWS User Group Laos'
+	}
+} as const;
+
+/**
+ * Sent the moment someone registers for an event that requires approval.
+ *
+ * Carries no ticket code and no QR — there is no place yet, and showing a code
+ * at this point invites somebody to turn up with it. Its whole job is to stop
+ * the silence that makes people register a second time.
+ */
+export function registrationReceivedEmail(params: PendingEmailParams): Omit<EmailMessage, 'to'> {
+	const t = RECEIVED_COPY[params.locale === 'lo' ? 'lo' : 'en'];
+	const when = formatEventDate(params.startAt, params.locale);
+
+	const rows =
+		detailRow(t.when, when) + (params.locationName ? detailRow(t.where, params.locationName) : '');
+
+	const body = [
+		heading(escapeHtml(t.heading)),
+		paragraph(escapeHtml(t.greeting(params.fullName)), 12),
+		paragraph(t.intro(escapeHtml(params.eventTitle)), 20),
+		paragraph(escapeHtml(t.body), 28),
+		detailPanel(rows),
+		paragraph(escapeHtml(t.note), 0),
+		`<p style="margin:28px 0 0;font-family:${FONT_SANS};font-size:16px;line-height:1.8;color:${PALETTE.slate}">${escapeHtml(t.closing)}<br />${escapeHtml(t.signature)}</p>`
+	].join('\n');
+
+	return {
+		subject: t.subject(params.eventTitle),
+		text: [
+			t.greeting(params.fullName),
+			'',
+			t.body,
+			'',
+			`${t.when}: ${when}`,
+			...(params.locationName ? [`${t.where}: ${params.locationName}`] : []),
+			'',
+			t.note,
+			'',
+			t.closing,
+			t.signature
+		].join('\n'),
+		html: layout({
+			locale: params.locale,
+			preheader: t.preheader,
+			body,
+			...(params.coverImageUrl
+				? {
+						cover: {
+							url: absoluteUrl(params.coverImageUrl, params.siteUrl),
+							alt: params.eventTitle
+						}
+					}
+				: {})
+		}),
+		attachments: [brandLogoAttachment()]
+	};
+}
+
+const DECLINED_COPY = {
+	lo: {
+		subject: (title: string) => `ຜົນການລົງທະບຽນ — ${title}`,
+		preheader: 'ກ່ຽວກັບການລົງທະບຽນຂອງທ່ານ.',
+		heading: 'ກ່ຽວກັບການລົງທະບຽນຂອງທ່ານ',
+		greeting: (name: string) => `ສະບາຍດີ ${name},`,
+		intro: (title: string) =>
+			`ຂອບໃຈທີ່ສົນໃຈ <strong>${title}</strong>. ເສຍໃຈດ້ວຍ, ພວກເຮົາບໍ່ສາມາດຈັດບ່ອນນັ່ງໃຫ້ທ່ານໃນຄັ້ງນີ້ໄດ້.`,
+		noteLabel: 'ຈາກຜູ້ຈັດງານ',
+		closing: 'ພວກເຮົາຫວັງວ່າຈະໄດ້ພົບທ່ານໃນງານຕໍ່ໄປ,',
+		signature: 'AWS User Group Laos',
+		cta: 'ເບິ່ງງານທີ່ຈະຈັດຂຶ້ນ'
+	},
+	en: {
+		subject: (title: string) => `About your registration — ${title}`,
+		preheader: 'An update on your registration.',
+		heading: 'About your registration',
+		greeting: (name: string) => `Hello ${name},`,
+		intro: (title: string) =>
+			`Thank you for your interest in <strong>${title}</strong>. We are sorry — we were not able to offer you a place this time.`,
+		noteLabel: 'From the organisers',
+		closing: 'We hope to see you at a future event,',
+		signature: 'AWS User Group Laos',
+		cta: 'See upcoming events'
+	}
+} as const;
+
+interface DeclinedEmailParams extends PendingEmailParams {
+	/** The organiser's note. Optional — the message reads without it. */
+	note?: string | null;
+}
+
+/**
+ * Sent when an organiser rejects a registration.
+ *
+ * The note is genuinely optional, so the neutral message has to stand on its
+ * own — the note is an addition to it, never the body of it.
+ */
+export function registrationDeclinedEmail(params: DeclinedEmailParams): Omit<EmailMessage, 'to'> {
+	const t = DECLINED_COPY[params.locale === 'lo' ? 'lo' : 'en'];
+	const note = params.note?.trim();
+	const eventsUrl = `${params.siteUrl.replace(/\/+$/, '')}${params.locale === 'lo' ? '' : '/en'}/events`;
+
+	const body = [
+		heading(escapeHtml(t.heading)),
+		paragraph(escapeHtml(t.greeting(params.fullName)), 12),
+		paragraph(t.intro(escapeHtml(params.eventTitle)), note ? 20 : 28),
+		note ? detailPanel(detailRow(t.noteLabel, note)) : '',
+		button(eventsUrl, t.cta),
+		`<p style="margin:28px 0 0;font-family:${FONT_SANS};font-size:16px;line-height:1.8;color:${PALETTE.slate}">${escapeHtml(t.closing)}<br />${escapeHtml(t.signature)}</p>`
+	].join('\n');
+
+	return {
+		subject: t.subject(params.eventTitle),
+		text: [
+			t.greeting(params.fullName),
+			'',
+			params.locale === 'lo'
+				? `ຂອບໃຈທີ່ສົນໃຈ "${params.eventTitle}". ເສຍໃຈດ້ວຍ, ພວກເຮົາບໍ່ສາມາດຈັດບ່ອນນັ່ງໃຫ້ທ່ານໃນຄັ້ງນີ້ໄດ້.`
+				: `Thank you for your interest in "${params.eventTitle}". We are sorry — we were not able to offer you a place this time.`,
+			...(note ? ['', `${t.noteLabel}: ${note}`] : []),
+			'',
+			`${t.cta}: ${eventsUrl}`,
+			'',
+			t.closing,
+			t.signature
+		].join('\n'),
+		// No cover image: this is not an invitation, and leading with the artwork
+		// of an event somebody was just turned away from reads badly.
+		html: layout({ locale: params.locale, preheader: t.preheader, body }),
+		attachments: [brandLogoAttachment()]
+	};
+}
+
+/* -------------------------------------------------------------------------- */
 /* Newsletter welcome                                                         */
 /* -------------------------------------------------------------------------- */
 
