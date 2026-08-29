@@ -21,6 +21,7 @@
  * Streets and water: OpenStreetMap contributors, ODbL — the footer attribution is a licence
  * condition, do not remove it.
  */
+import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -30,6 +31,8 @@ import {
 	CITY_BBOX,
 	CITY_HALF_DEPTH,
 	CITY_HALF_WIDTH,
+	CITY_MINOR_FADE_END,
+	CITY_MINOR_RADIUS,
 	CITY_UNITS_PER_METRE,
 	COUNTRY_ELEVATION_UNITS_PER_METRE,
 	COUNTRY_HALF_DEPTH,
@@ -460,8 +463,17 @@ function traceLevel(grid, mask, width, height, level, latAt, lngAt) {
 
 const CITY_BOX = `${CITY_BBOX.south},${CITY_BBOX.west},${CITY_BBOX.north},${CITY_BBOX.east}`;
 
+/*
+ * The cache key carries a digest of the query, not just the label.
+ *
+ * It used to be the label alone, which made the cache lie the moment `CITY_BBOX` changed: a
+ * widened box would hit the file baked from the old narrow one, and the rebake would
+ * silently reproduce the map it already had. Keying on the query means a changed extent
+ * misses by construction.
+ */
 async function overpass(query, label) {
-	const path = join(cacheDir, `${label}.json`);
+	const digest = createHash('sha256').update(query).digest('hex').slice(0, 8);
+	const path = join(cacheDir, `${label}-${digest}.json`);
 	try {
 		const hit = JSON.parse(await readFile(path, 'utf8'));
 		console.log(`  ${label}: ${hit.length} elements (cached)`);
@@ -485,7 +497,7 @@ async function overpass(query, label) {
 					'user-agent': USER_AGENT
 				},
 				body,
-				signal: AbortSignal.timeout(180_000)
+				signal: AbortSignal.timeout(300_000)
 			});
 			const text = await res.text();
 			if (!res.ok || !text.trimStart().startsWith('{')) {
@@ -518,6 +530,56 @@ const STREET_WEIGHT = {
 	secondary: 2, tertiary: 2,
 	residential: 1, unclassified: 1, living_street: 1
 };
+
+/** The classes that thin out with distance. Arterials are drawn to the edge of the box. */
+const MINOR = new Set(['residential', 'unclassified', 'living_street']);
+
+/**
+ * A stable [0, 1) from an OSM way id.
+ *
+ * Stable is the point: the same id must survive, or not, across rebakes. Anything random
+ * reshuffles which side streets exist every time the map is regenerated, and the diff
+ * becomes unreadable.
+ */
+function hashUnit(id) {
+	let h = 0x811c9dc5;
+	const text = String(id);
+	for (let i = 0; i < text.length; i++) {
+		h ^= text.charCodeAt(i);
+		h = Math.imul(h, 0x01000193) >>> 0;
+	}
+	return h / 0x100000000;
+}
+
+/**
+ * Whether a side street is drawn, given where it sits.
+ *
+ * Inside the old downtown crop, all of them: that grid is the texture the city is recognised
+ * by. Past it they thin out to nothing, because at this extent a complete residential
+ * network prints as a grey wash rather than as streets — the same reason a paper map drops
+ * side streets as its scale widens.
+ *
+ * The thinning is probabilistic rather than a hard radius on purpose. A clean circle where
+ * side streets stop dead is the same tell as the severed rectangle `edgeFade` exists to
+ * hide: it reads as a crop. Dissolved, it reads as a city petering out.
+ */
+function keepMinor(way, line) {
+	if (!MINOR.has(way.tags?.highway)) return true;
+
+	let x = 0;
+	let z = 0;
+	for (const [px, pz] of line) {
+		x += px;
+		z += pz;
+	}
+	const distance = Math.hypot(x / line.length, z / line.length);
+
+	if (distance <= CITY_MINOR_RADIUS) return true;
+	if (distance >= CITY_MINOR_FADE_END) return false;
+
+	const t = (distance - CITY_MINOR_RADIUS) / (CITY_MINOR_FADE_END - CITY_MINOR_RADIUS);
+	return hashUnit(way.id) > t;
+}
 
 /* -------------------------------------------------------------------------- */
 /* Build                                                                      */
@@ -594,20 +656,21 @@ async function buildCountry() {
 const clampNothing = (points) => points;
 
 async function buildCity() {
-	console.log('City — Vientiane');
+	console.log('City — Greater Vientiane');
 
 	const streets = await overpass(
-		`[out:json][timeout:180];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)$"](${CITY_BOX});out geom;`,
+		`[out:json][timeout:300];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)$"](${CITY_BOX});out geom;`,
 		'streets'
 	);
 	const water = await overpass(
-		`[out:json][timeout:180];(way["natural"="water"](${CITY_BOX});relation["natural"="water"](${CITY_BOX});way["waterway"="riverbank"](${CITY_BOX}););out geom;`,
+		`[out:json][timeout:300];(way["natural"="water"](${CITY_BOX});relation["natural"="water"](${CITY_BOX});way["waterway"="riverbank"](${CITY_BOX}););out geom;`,
 		'water'
 	);
 
 	const counts = [];
 	const weights = [];
 	const coords = [];
+	let thinned = 0;
 
 	for (const way of streets) {
 		if (!way.geometry) continue;
@@ -619,8 +682,17 @@ async function buildCity() {
 			});
 		if (raw.length < 2) continue;
 
-		const line = simplify(clampCity(raw), 3 * CITY_UNITS_PER_METRE);
+		/*
+		 * 9 m, not 3 m. The tolerance is a screen budget dressed as a distance: one pixel of
+		 * this chart covers three times the ground it used to, so holding 3 m would only ship
+		 * vertices no display can resolve.
+		 */
+		const line = simplify(clampCity(raw), 9 * CITY_UNITS_PER_METRE);
 		if (line.length < 2 || line.length > 65535) continue;
+		if (!keepMinor(way, line)) {
+			thinned++;
+			continue;
+		}
 
 		counts.push(line.length);
 		weights.push(STREET_WEIGHT[way.tags?.highway] ?? 1);
@@ -644,14 +716,16 @@ async function buildCity() {
 				return [x, z];
 			});
 			if (raw.length < 4) continue;
-			const line = simplify(clampCity(raw), 6 * CITY_UNITS_PER_METRE);
+			const line = simplify(clampCity(raw), 18 * CITY_UNITS_PER_METRE);
 			if (line.length < 3 || line.length > 65535) continue;
 			waterCounts.push(line.length);
 			for (const [x, z] of line) waterCoords.push(x, z);
 		}
 	}
 
-	console.log(`  ${counts.length} streets · ${waterCounts.length} water outlines`);
+	console.log(
+		`  ${counts.length} streets · ${waterCounts.length} water outlines · ${thinned} side streets thinned`
+	);
 
 	const scale = Math.max(CITY_HALF_WIDTH, CITY_HALF_DEPTH) / 32000;
 	const q = (v) => Math.max(-32768, Math.min(32767, Math.round(v / scale)));

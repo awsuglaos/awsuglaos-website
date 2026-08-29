@@ -108,21 +108,25 @@ const POSES: Record<MapView, { azimuth: number; elevation: number; distance: num
 	 */
 	country: { azimuth: 0.16, elevation: 1.02, distance: 276 },
 	/*
-	 * Central Vientiane is ~48 × 50 units, and at this elevation its depth projects to more
+	 * Greater Vientiane is ~145 × 152 units, and at this elevation its depth projects to more
 	 * than the frame height allows from close in — which quietly cropped the southern
 	 * venues off the board. This distance fits the whole modelled area, so every beacon the
-	 * list mentions is actually on the map.
+	 * list mentions is actually on the map. It tracks the city extent: widen `CITY_BBOX` and
+	 * this, `LABEL_HEIGHT.city` and the city arm of `beaconScale` all move with it.
 	 */
-	city: { azimuth: 0.1, elevation: 1.06, distance: 142 },
+	city: { azimuth: 0.1, elevation: 1.06, distance: 426 },
 	venue: { azimuth: 0.1, elevation: 0.98, distance: 26 }
 };
+
+/** The colour a line fades to under additive blending: nothing at all. */
+const BLACK = new Color(0, 0, 0);
 
 /** How far the pointer may tilt the chart. Small — this is a map, not a turntable. */
 const TILT_AZIMUTH = 0.16;
 const TILT_ELEVATION = 0.13;
 
 /** Height the label anchors float above their ground point, in scene units. */
-const LABEL_HEIGHT: Record<MapView, number> = { country: 5.5, city: 3.4, venue: 1.6 };
+const LABEL_HEIGHT: Record<MapView, number> = { country: 5.5, city: 10.2, venue: 1.6 };
 
 export interface MapScene {
 	loadCountry(data: CountryData): void;
@@ -161,7 +165,12 @@ export function createMapScene(canvas: HTMLCanvasElement, options: MapSceneOptio
 	const scene = new Scene();
 	// A long lens. At 20° the near and far edges of the chart are almost the same size,
 	// which is what sells "map" over "landscape".
-	const camera = new PerspectiveCamera(20, 1, 1, 900);
+	//
+	// The far plane has to clear the city board seen from a portrait viewport, where `resize`
+	// pulls the camera back by up to 1.75× and the far corner of the ground plane lands at
+	// ~850 units. The ground fades out rather than ending, so anything clipped there would
+	// read as a hard straight edge across the chart — the one thing that fade exists to avoid.
+	const camera = new PerspectiveCamera(20, 1, 1, 1400);
 
 	const world = new Group();
 	/*
@@ -267,6 +276,10 @@ export function createMapScene(canvas: HTMLCanvasElement, options: MapSceneOptio
 	 * than a place. Fading the ink out before it reaches that edge turns the cut into a
 	 * vignette. The country chart needs none of this: its data ends at a national border,
 	 * which is a real edge worth drawing.
+	 *
+	 * This matters more the wider the box gets. Every way that crosses the boundary is clamped
+	 * to it, so they pile up collinear along the edge — at the city's current extent that is
+	 * enough of them to draw the rectangle on its own.
 	 */
 	const edgeFade = (x: number, z: number) => {
 		if (isCountry) return 1;
@@ -289,6 +302,17 @@ export function createMapScene(canvas: HTMLCanvasElement, options: MapSceneOptio
 		const positions = new Float32Array(segments * 6);
 		const colors = new Float32Array(segments * 6);
 		const color = new Color();
+
+		/*
+		 * What a faded line fades *to*.
+		 *
+		 * Under additive blending black is the absence of ink, so on the dark chart the fade
+		 * drives the colour to zero and the line dissolves. Under normal blending zero is the
+		 * blackest ink on the page — scaling toward it there drew the crop in bold, exactly
+		 * where the fade was meant to hide it. On the light chart the vanishing point is the
+		 * chart's own ground instead.
+		 */
+		const vanish = palette.isDark ? BLACK : palette.ground;
 
 		let cursor = 0;
 		let v = 0;
@@ -318,12 +342,12 @@ export function createMapScene(canvas: HTMLCanvasElement, options: MapSceneOptio
 				// Per-vertex, so a road crossing the edge fades along its own length.
 				const fa = edgeFade(ax, az);
 				const fb = edgeFade(bx, bz);
-				colors[v] = color.r * fa;
-				colors[v + 1] = color.g * fa;
-				colors[v + 2] = color.b * fa;
-				colors[v + 3] = color.r * fb;
-				colors[v + 4] = color.g * fb;
-				colors[v + 5] = color.b * fb;
+				colors[v] = vanish.r + (color.r - vanish.r) * fa;
+				colors[v + 1] = vanish.g + (color.g - vanish.g) * fa;
+				colors[v + 2] = vanish.b + (color.b - vanish.b) * fa;
+				colors[v + 3] = vanish.r + (color.r - vanish.r) * fb;
+				colors[v + 4] = vanish.g + (color.g - vanish.g) * fb;
+				colors[v + 5] = vanish.b + (color.b - vanish.b) * fb;
 				v += 6;
 			}
 			cursor += n * 2;
@@ -684,7 +708,7 @@ export function createMapScene(canvas: HTMLCanvasElement, options: MapSceneOptio
 
 	const dummy = new Object3D();
 	/** Beacon footprint and column height per view, so markers stay frame-sized. */
-	const beaconScale = () => (isCountry ? 3.4 : view === 'city' ? 2.1 : 0.9);
+	const beaconScale = () => (isCountry ? 3.4 : view === 'city' ? 6.3 : 0.9);
 
 	function setBeacons(next: MapBeacon[]) {
 		const inRange = isCountry ? () => true : (b: MapBeacon) => isInCity(b.lat, b.lng);

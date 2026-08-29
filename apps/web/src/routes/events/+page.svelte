@@ -3,7 +3,7 @@
 	import MapCanvas from '$lib/components/map/MapCanvas.svelte';
 	import MapHud from '$lib/components/map/MapHud.svelte';
 	import EventCard from '$lib/components/EventCard.svelte';
-	import { CITY_ORIGIN_LAT, CITY_ORIGIN_LNG } from '$lib/map/projection.js';
+	import { CITY_ORIGIN_LAT, CITY_ORIGIN_LNG, isInCity } from '$lib/map/projection.js';
 	import NewsletterForm from '$lib/components/NewsletterForm.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -37,6 +37,13 @@
 				past,
 				label: event.locationName
 			}))
+			/*
+			 * The scene drops anything outside the city box anyway. Dropping it here too is what
+			 * keeps the HUD honest: it counts this list, so without the filter it reports nodes
+			 * that are nowhere on the chart — which is precisely the case a reader would use the
+			 * count to catch.
+			 */
+			.filter((beacon) => isInCity(beacon.lat, beacon.lng))
 	);
 </script>
 

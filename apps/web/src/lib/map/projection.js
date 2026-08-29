@@ -77,25 +77,30 @@ export const COUNTRY_HALF_DEPTH =
 /* -------------------------------------------------------------------------- */
 
 /**
- * Central Vientiane: the Mekong bend, the downtown grid, Patuxai, Pha That Luang, and the
- * venues this group actually meets at — the National Convention Centre and Toh-Lao
- * Coworking among them.
+ * Greater Vientiane: the Mekong bend, the downtown grid, Patuxai, Pha That Luang, the
+ * National University campus at Dongdok, the road out to Thadeua, and the venues this group
+ * actually meets at — the National Convention Centre and Toh-Lao Coworking among them.
  *
- * Venues outside this box are not faked: they get no beacon, and the event page falls back
- * to the map embed. The National University campus, 5 km west of the centre, is the honest
- * example of that.
+ * This box was tripled from the original ~4.8 × 5.1 km downtown crop. That crop was drawn
+ * around the venues of the group's first years, and the city outgrew it: meetups moved to
+ * campuses and offices past the old ring, and those events were silently losing their
+ * beacon. The rule that produced the widening is the one worth keeping — the extent follows
+ * where the group actually meets, not the other way round.
+ *
+ * Venues outside this box are still not faked: they get no beacon, and the event page falls
+ * back to the map embed.
  */
 export const CITY_BBOX = Object.freeze({
-	south: 17.94,
-	west: 102.5975,
-	north: 17.9855,
-	east: 102.643
+	south: 17.8945,
+	west: 102.552,
+	north: 18.031,
+	east: 102.6885
 });
 
 export const CITY_ORIGIN_LAT = (CITY_BBOX.south + CITY_BBOX.north) / 2;
 export const CITY_ORIGIN_LNG = (CITY_BBOX.west + CITY_BBOX.east) / 2;
 
-/** 1 scene unit = 100 m. Central Vientiane lands at roughly 48 × 50 units. */
+/** 1 scene unit = 100 m. Greater Vientiane lands at roughly 145 × 152 units. */
 export const CITY_UNITS_PER_METRE = 0.01;
 
 const CITY_M_PER_DEG_LAT = EARTH_RADIUS_M * DEG_TO_RAD;
@@ -117,6 +122,20 @@ export const CITY_HALF_WIDTH =
 	((CITY_BBOX.east - CITY_BBOX.west) / 2) * CITY_M_PER_DEG_LNG * CITY_UNITS_PER_METRE;
 export const CITY_HALF_DEPTH =
 	((CITY_BBOX.north - CITY_BBOX.south) / 2) * CITY_M_PER_DEG_LAT * CITY_UNITS_PER_METRE;
+
+/**
+ * Where side streets stop being drawn.
+ *
+ * The chart covers three times the ground it used to at the same size on screen, so every
+ * residential lane in it would print as a grey wash rather than a grid — the same reason a
+ * paper map drops side streets as its scale widens. Arterials are drawn everywhere;
+ * residential roads are drawn in full inside this radius, which is roughly the old downtown
+ * crop, and thin out over the band beyond it. See `bake-map.mjs`.
+ */
+export const CITY_MINOR_RADIUS = CITY_HALF_WIDTH / 3;
+
+/** Where the last side street goes. Past this the chart is arterials and water only. */
+export const CITY_MINOR_FADE_END = CITY_HALF_WIDTH * 0.72;
 
 /* -------------------------------------------------------------------------- */
 /* Shared                                                                     */

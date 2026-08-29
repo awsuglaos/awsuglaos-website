@@ -26,10 +26,10 @@ and real streets with the group's real venues on it, not decoration.
 | Concern | Decision |
 |---|---|
 | Country extent | `COUNTRY_BBOX` in [`projection.js`](apps/web/src/lib/map/projection.js) — all of Laos, 1 unit = 10 km |
-| City extent | `CITY_BBOX` — central Vientiane, ~4.8 × 5.1 km, 1 unit = 100 m |
+| City extent | `CITY_BBOX` — greater Vientiane, ~14.5 × 15.2 km, 1 unit = 100 m. It follows the venues: when meetups outgrew the old downtown crop the box was tripled, not the events dropped |
 | Terrain | SRTM via **AWS Open Data Terrain Tiles**, traced to contours by `scripts/bake-map.mjs` |
 | Border | Natural Earth admin-0 |
-| Streets, water | OpenStreetMap (ODbL) |
+| Streets, water | OpenStreetMap (ODbL). Arterials reach the edge of the box; side streets are drawn in full downtown and thin out beyond it, feathered so the boundary has no circle in it |
 | Views | `country` (hero), `city` (events board), `venue` (event page) |
 | Beacons | Real `location_lat` / `location_lng` from the events table; upcoming pulse, past sit quiet |
 | Vertical scale | Contours at true elevation × 14, so tilting reveals the stack |
