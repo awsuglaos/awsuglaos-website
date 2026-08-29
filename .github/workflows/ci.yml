@@ -204,6 +204,11 @@ jobs:
         env:
           SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
           SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
+          # A secret, not a variable: Actions masks it in logs. Empty is a
+          # valid value and means "send through SES instead".
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME }}
+          MAIL_FROM_EMAIL: ${{ vars.MAIL_FROM_EMAIL }}
         run: |
           STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
           pnpm sst deploy --stage "$STAGE"
@@ -216,6 +221,11 @@ jobs:
         env:
           SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
           SES_FROM_ADDRESS: ${{ vars.SES_FROM_ADDRESS }}
+          # A secret, not a variable: Actions masks it in logs. Empty is a
+          # valid value and means "send through SES instead".
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME }}
+          MAIL_FROM_EMAIL: ${{ vars.MAIL_FROM_EMAIL }}
         run: |
           STAGE=${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
           # `sst shell` injects the linked resource environment (cluster ARN,

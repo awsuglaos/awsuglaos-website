@@ -345,27 +345,27 @@ export default $config({
 		});
 
 		/*
-		 * The Resend API key, while SES production access is pending.
+		 * Mail configuration for both functions.
 		 *
-		 * A secret rather than a plain `process.env` passthrough like the values
-		 * below it: those only have to exist in whoever's shell runs the deploy,
-		 * which for a key means putting it in GitHub Actions as well. This lives
-		 * in SSM under the stage and is set once:
+		 * `RESEND_API_KEY` arrives the same way every other deploy-time value
+		 * here does — from the environment of whatever runs `sst deploy`, which
+		 * in practice is only ever GitHub Actions over OIDC. It is a GitHub
+		 * *secret* rather than a variable, so Actions masks it in logs.
 		 *
-		 *   npx sst secret set ResendApiKey <key> --stage production
+		 * Deliberately not an `sst.Secret`. That would keep the key in SSM,
+		 * which is the better place for it, but setting one requires AWS
+		 * credentials on somebody's machine and nobody here has them: this
+		 * account is reachable only through the deploy role, and only Actions
+		 * can assume it. A secret nobody can set is worse than an env var.
 		 *
-		 * It is passed through as an environment variable rather than linked, so
-		 * the apps keep reading plain env and the local console path is unchanged.
-		 * Unset, `.value` is empty and both functions fall through to SES.
+		 * Empty means "no Resend", and both apps fall through to SES.
 		 */
-		const resendApiKey = new sst.Secret('ResendApiKey', '');
-
 		const mailEnvironment = {
-			RESEND_API_KEY: resendApiKey.value,
+			RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
 			MAIL_FROM_NAME: process.env.MAIL_FROM_NAME ?? 'AWS User Group Laos',
 			MAIL_FROM_EMAIL: process.env.MAIL_FROM_EMAIL ?? '',
-			// Used only when RESEND_API_KEY is empty. Kept wired so approval is a
-			// secret change and a redeploy, not a code change.
+			// Used only when RESEND_API_KEY is empty. Kept wired so that SES
+			// approval is a config change and a redeploy, not a code change.
 			SES_FROM_ADDRESS: process.env.SES_FROM_ADDRESS ?? '',
 			SES_CONFIGURATION_SET: emailConfigurationSet.configurationSetName
 		};

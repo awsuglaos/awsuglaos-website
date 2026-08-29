@@ -359,14 +359,15 @@ Under the **Variables** tab, **New repository variable**:
 | `MAIL_FROM_EMAIL`  | `noreply@awsug.la`    | Must be verified in Resend — see Phase 5   |
 | `SES_FROM_ADDRESS` | `noreply@awsug.la`    | Only used if Resend is unset — see Phase 5 |
 
-`RESEND_API_KEY` is **not** a repository variable. It is an SST secret, set once
-per stage from your own machine and stored in SSM:
+`RESEND_API_KEY` goes under **Secrets**, not Variables — a variable is readable
+by anyone who can see the repository, and Actions does not mask it in logs. Add
+it the same way as `AWS_DEPLOY_ROLE_ARN`, on each environment that needs it:
 
-```bash
-npx sst secret set ResendApiKey re_xxxxxxxx --stage production
-```
+| Name             | Where                                                        |
+| ---------------- | ------------------------------------------------------------ |
+| `RESEND_API_KEY` | Settings → Environments → `staging` / `production` → Secrets |
 
-That keeps the key out of GitHub entirely. Deploys read it from SSM.
+Leaving it unset is valid and means that stage sends through SES instead.
 
 > **`SITE_DOMAIN` is the root domain, and only the root domain.** Both stages
 > read the same variable and each derives its own host from it — production
@@ -431,14 +432,24 @@ event out of the door.
    resolve, `noreply@awsug.la` will not send** — the dashboard shows the domain
    as Verified when they have propagated, usually within the hour.
 3. Create an API key with **Sending access** only.
-4. Set it as an SST secret, per stage:
-
-   ```bash
-   npx sst secret set ResendApiKey re_xxxxxxxx --stage production
-   ```
-
+4. Add it as the `RESEND_API_KEY` **secret** on the GitHub environment for each
+   stage that should use it — Settings → Environments → `staging` (then
+   `production`) → **Environment secrets**. Copy it once; GitHub will not show
+   it again.
 5. Set the `MAIL_FROM_NAME` and `MAIL_FROM_EMAIL` repository variables (see the
-   table in Phase 4) and redeploy.
+   table in Phase 4) and push, which redeploys.
+
+> **Why not an SST secret?** `sst secret set` writes to SSM, which is a better
+> home for a key than a CI secret — but running it needs AWS credentials on the
+> machine you run it from, and this account is reachable only by assuming the
+> deploy role, which only GitHub Actions can do over OIDC. A secret that nobody
+> is able to set is worse than an environment variable, so the key travels the
+> same path as every other deploy-time value here.
+
+Put the same key in your repo-root `.env` if you want `pnpm mail:send` and local
+`pnpm dev` to send for real. That file is gitignored; never commit it, and never
+paste the key into a chat, an issue or a PR — if you do, rotate it in the Resend
+dashboard rather than hoping.
 
 Before announcing the event, send yourself the real thing and read it on a
 phone:
@@ -458,10 +469,10 @@ sends — see [COSTS.md](COSTS.md).
 You have already set SES up. Two things are worth revisiting now that the domain
 exists.
 
-To switch back once Amazon approves the account: clear the Resend secret
-(`npx sst secret remove ResendApiKey --stage production`) and redeploy. The SES
-configuration set, its bounce suppression and its CloudWatch event destination
-are all still wired and were never removed.
+To switch back once Amazon approves the account: delete the `RESEND_API_KEY`
+secret from that GitHub environment and re-run the deploy. The SES configuration
+set, its bounce suppression and its CloudWatch event destination are all still
+wired and were never removed — nothing in the code has to change.
 
 #### Verify the domain, not just an address
 
