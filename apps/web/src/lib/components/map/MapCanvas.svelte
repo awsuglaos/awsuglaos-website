@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { detectQuality, prefersReducedMotion, supportsWebGL } from '$lib/map/capabilities';
 	import type { MapBeacon, MapLabel, MapScene, MapView } from '$lib/map/scene';
+	import { currentLocale } from '$lib/locale';
 	import * as m from '$lib/paraglide/messages';
-	import { getLocale } from '$lib/paraglide/runtime';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -180,7 +180,7 @@
 		if (focus) scene?.focus(focus.lat, focus.lng);
 	});
 
-	let lao = $derived(getLocale() === 'lo');
+	let lao = $derived(currentLocale() === 'lo');
 </script>
 
 <!--

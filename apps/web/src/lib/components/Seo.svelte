@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { getLocale, locales, localizeHref } from '$lib/paraglide/runtime';
+	import { currentLocale } from '$lib/locale';
+	import { locales, localizeHref } from '$lib/paraglide/runtime';
 
 	interface Props {
 		title: string;
@@ -61,7 +62,7 @@
 	<meta property="og:type" content={type} />
 	<meta property="og:title" content={fullTitle} />
 	<meta property="og:url" content={canonical} />
-	<meta property="og:locale" content={getLocale() === 'lo' ? 'lo_LA' : 'en_GB'} />
+	<meta property="og:locale" content={currentLocale() === 'lo' ? 'lo_LA' : 'en_GB'} />
 	{#if description}
 		<meta property="og:description" content={description} />
 	{/if}

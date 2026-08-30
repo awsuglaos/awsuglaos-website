@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "How one URL becomes one language",
+    "output": "bilingual-request-lifecycle.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      860
+    ],
+    "views": [
+      {
+        "id": "dynamic-half",
+        "label": "Database content",
+        "focus": [
+          "request",
+          "reroute",
+          "load",
+          "db",
+          "pick",
+          "page"
+        ],
+        "note": "The half that goes to Postgres — and the half that used to go stale."
+      },
+      {
+        "id": "static-half",
+        "label": "Compiled strings",
+        "focus": [
+          "request",
+          "middleware",
+          "messages",
+          "page"
+        ],
+        "note": "Paraglide messages are compiled per locale and resolved at render time."
+      },
+      {
+        "id": "fallback",
+        "label": "Missing translation",
+        "focus": [
+          "db",
+          "pick",
+          "notice"
+        ],
+        "note": "English is optional; Lao is the base, and the reader is told when they are seeing it."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Request"
+    },
+    {
+      "label": "Resolve"
+    },
+    {
+      "label": "Load"
+    },
+    {
+      "label": "Translate"
+    },
+    {
+      "label": "Render"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "request",
+      "type": "frontend",
+      "label": "GET /en/events",
+      "sublabel": "Lao is unprefixed",
+      "stage": 0,
+      "row": 1
+    },
+    {
+      "id": "reroute",
+      "type": "backend",
+      "label": "hooks.ts reroute",
+      "sublabel": "deLocalizeUrl → /events",
+      "stage": 1,
+      "row": 2
+    },
+    {
+      "id": "middleware",
+      "type": "backend",
+      "label": "paraglideMiddleware",
+      "sublabel": "AsyncLocalStorage",
+      "stage": 1,
+      "row": 0
+    },
+    {
+      "id": "load",
+      "type": "backend",
+      "label": "+page.server.ts",
+      "sublabel": "localeOf(url)",
+      "stage": 2,
+      "row": 2
+    },
+    {
+      "id": "messages",
+      "type": "frontend",
+      "label": "m.events_title()",
+      "sublabel": "compiled per locale",
+      "stage": 2,
+      "row": 0
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "event_translations",
+      "sublabel": "unique (event_id, locale)",
+      "stage": 3,
+      "row": 2,
+      "width": 148
+    },
+    {
+      "id": "pick",
+      "type": "backend",
+      "label": "pickTranslation",
+      "sublabel": "en ?? lo ?? first",
+      "stage": 3,
+      "row": 4
+    },
+    {
+      "id": "page",
+      "type": "frontend",
+      "label": "SSR response",
+      "sublabel": "<html lang=\"en\">",
+      "stage": 4,
+      "row": 1
+    },
+    {
+      "id": "notice",
+      "type": "frontend",
+      "label": "Lao-fallback notice",
+      "sublabel": "isFallback",
+      "stage": 4,
+      "row": 4
+    }
+  ],
+  "flows": [
+    {
+      "id": "match-route",
+      "from": "request",
+      "to": "reroute",
+      "label": "match one route tree",
+      "classification": "path only"
+    },
+    {
+      "id": "resolve-locale",
+      "from": "request",
+      "to": "middleware",
+      "label": "prefix → locale 'en'",
+      "classification": "url strategy"
+    },
+    {
+      "id": "route-to-load",
+      "from": "reroute",
+      "to": "load",
+      "label": "url still says /en",
+      "classification": "route is /events",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ambient-locale",
+      "from": "middleware",
+      "to": "messages",
+      "label": "getLocale()",
+      "classification": "ambient",
+      "variant": "dashed"
+    },
+    {
+      "id": "query",
+      "from": "load",
+      "to": "db",
+      "label": "with: { translations: true }",
+      "classification": "all locales",
+      "labelDy": 53
+    },
+    {
+      "id": "rows",
+      "from": "db",
+      "to": "pick",
+      "label": "rows for lo and en",
+      "classification": "both",
+      "labelDy": 85
+    },
+    {
+      "id": "resolved",
+      "from": "pick",
+      "to": "page",
+      "label": "one language, flattened",
+      "classification": "view model",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fallback-banner",
+      "from": "pick",
+      "to": "notice",
+      "label": "no 'en' row",
+      "classification": "shown in Lao",
+      "variant": "dashed",
+      "route": "straight",
+      "labelDy": 34
+    },
+    {
+      "id": "static-strings",
+      "from": "messages",
+      "to": "page",
+      "label": "static strings",
+      "classification": "build-time"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "The locale lives in the URL, and only there",
+      "items": [
+        "Lao is the base locale and renders unprefixed; English sits under /en",
+        "reroute maps both onto one route tree, so there is no [locale] directory to duplicate",
+        "The cookie strategy never fires: the Lao pattern /:path(.*) matches every path first"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "What used to break here",
+      "items": [
+        "A load that read getLocale() declared no dependency SvelteKit could track",
+        "Route and params are identical across languages, so the client judged the node still valid",
+        "It skipped the __data.json request entirely and re-rendered the previous language's rows",
+        "The compiled strings still swapped — which made a stale load look like a render glitch"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Translations are side tables, not columns",
+      "items": [
+        "Every content table has a *_translations child keyed on (parent_id, locale)",
+        "The slug stays on the parent, so one URL is shareable in either language",
+        "English is optional: pickTranslation falls back to Lao, and isFallback says so on the page"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Why public caching is safe",
+      "items": [
+        "The response is a pure function of the URL, so no Vary header is needed",
+        "/events and /en/events are distinct CloudFront keys, as are their __data.json requests",
+        "Deriving the locale from url is what makes that true by construction rather than by luck"
+      ]
+    }
+  ]
+}

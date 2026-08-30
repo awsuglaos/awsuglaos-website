@@ -1,11 +1,11 @@
-import { getLocale } from '$lib/paraglide/runtime';
 import { getContext } from '$lib/server/context';
+import { localeOf } from '$lib/server/locale';
 import { eventService } from '@awsug/core';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ setHeaders }) => {
+export const load: PageServerLoad = async ({ url, setHeaders }) => {
 	const ctx = await getContext();
-	const locale = getLocale();
+	const locale = localeOf(url);
 
 	const [upcoming, past] = await Promise.all([
 		eventService.listPublishedEvents(ctx, { locale, when: 'upcoming' }),

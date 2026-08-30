@@ -1,10 +1,10 @@
-import { getLocale } from '$lib/paraglide/runtime';
+import { currentLocale } from '$lib/locale';
 
 /** Every event is in Vientiane, so times are always shown in local Lao time. */
 export const TIME_ZONE = 'Asia/Vientiane';
 
 function tag(): string {
-	return getLocale() === 'lo' ? 'lo-LA' : 'en-GB';
+	return currentLocale() === 'lo' ? 'lo-LA' : 'en-GB';
 }
 
 function safeFormat(date: Date, options: Intl.DateTimeFormatOptions): string {
@@ -30,7 +30,8 @@ export function formatTime(date: Date): string {
 
 /** "9:00 – 17:00" for a same-day event, otherwise both full dates. */
 export function formatEventRange(startAt: Date, endAt: Date): string {
-	const sameDay = safeFormat(startAt, { dateStyle: 'short' }) === safeFormat(endAt, { dateStyle: 'short' });
+	const sameDay =
+		safeFormat(startAt, { dateStyle: 'short' }) === safeFormat(endAt, { dateStyle: 'short' });
 	return sameDay
 		? `${formatDateTime(startAt)} – ${formatTime(endAt)}`
 		: `${formatDateTime(startAt)} – ${formatDateTime(endAt)}`;

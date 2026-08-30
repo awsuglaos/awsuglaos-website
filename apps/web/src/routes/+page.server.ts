@@ -1,5 +1,5 @@
-import { getLocale } from '$lib/paraglide/runtime';
 import { getContext } from '$lib/server/context';
+import { localeOf } from '$lib/server/locale';
 import {
 	articleService,
 	eventService,
@@ -9,9 +9,9 @@ import {
 } from '@awsug/core';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ setHeaders }) => {
+export const load: PageServerLoad = async ({ url, setHeaders }) => {
 	const ctx = await getContext();
-	const locale = getLocale();
+	const locale = localeOf(url);
 
 	const [upcoming, latest, sponsors, team, pastCount, feedback] = await Promise.all([
 		eventService.listPublishedEvents(ctx, { locale, when: 'upcoming', limit: 3 }),
