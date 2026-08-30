@@ -1,6 +1,7 @@
 import { getLocale, localizeHref } from '$lib/paraglide/runtime';
 import { getContext } from '$lib/server/context';
 import { isBot, toFormFailure } from '$lib/server/form';
+import { localeOf } from '$lib/server/locale';
 import { eventService, registrationService, speakerService, sponsorService } from '@awsug/core';
 import { isDomainError, isQuestion, type FormDefinition } from '@awsug/shared';
 import { error, fail, redirect } from '@sveltejs/kit';
@@ -8,10 +9,10 @@ import { error, fail, redirect } from '@sveltejs/kit';
 // the one exported from @sveltejs/kit widens them to string | undefined.
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, setHeaders }) => {
+export const load: PageServerLoad = async ({ params, url, setHeaders }) => {
 	const ctx = await getContext();
 
-	const locale = getLocale();
+	const locale = localeOf(url);
 
 	try {
 		const event = await eventService.getPublishedEventBySlug(ctx, params.slug, locale);

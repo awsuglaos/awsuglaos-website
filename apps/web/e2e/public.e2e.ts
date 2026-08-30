@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test.describe('public site', () => {
 	test('landing page renders in Lao by default', async ({ page }) => {
@@ -13,6 +13,76 @@ test.describe('public site', () => {
 		await expect(page).toHaveURL(/\/en\/events$/);
 		await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 		await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible();
+	});
+
+	/*
+	 * The toggle is a plain link, so a click before the router has taken over is a
+	 * document navigation — which would show the right language for the wrong reason
+	 * and make the two tests below pass on a build where nothing was fixed. SvelteKit
+	 * stamps `sveltekit:history` into `history.state` when it starts, so this is the
+	 * signal that the next click will be intercepted.
+	 */
+	async function routerReady(page: Page) {
+		await page.waitForFunction(
+			() => !!(history.state as Record<string, unknown> | null)?.['sveltekit:history']
+		);
+	}
+
+	/*
+	 * The regression this guards is subtle enough to be worth stating: `hooks.ts` reroutes
+	 * both languages onto one route with identical params, so the URL is the only thing
+	 * that differs between them. A `load` that took its locale from paraglide's
+	 * `getLocale()` — resolved through AsyncLocalStorage, invisible to SvelteKit — declared
+	 * no dependency on the language, so the client judged the node still valid, skipped the
+	 * `__data.json` request entirely and re-rendered the previous language's rows. The
+	 * static strings still swapped, which is what made it look like a rendering glitch
+	 * rather than a stale load. Assert on a database column, never on a message key.
+	 */
+	test('switching language re-fetches database content without a reload', async ({ page }) => {
+		await page.goto('/en/events');
+		await routerReady(page);
+
+		// `event_translations.locationName`. The two locales share no substring, so a
+		// stale render cannot pass by coincidence.
+		await expect(page.getByText('National Convention Centre, Vientiane').first()).toBeVisible();
+
+		// Survives a client-side navigation, does not survive a document swap.
+		await page.evaluate(() => {
+			(window as Window & { __sameDocument?: true }).__sameDocument = true;
+		});
+
+		await page.getByRole('link', { name: 'ພາສາລາວ' }).first().click();
+
+		await expect(page).toHaveURL(/\/events$/);
+		await expect(page.locator('html')).toHaveAttribute('lang', 'lo');
+
+		// The database-backed strings swap...
+		await expect(page.getByText('ຫໍປະຊຸມແຫ່ງຊາດ, ວຽງຈັນ').first()).toBeVisible();
+		await expect(page.getByText('AWS Community Day ວຽງຈັນ 2026').first()).toBeVisible();
+		// ...and the English ones are replaced, not merely joined.
+		await expect(page.getByText('National Convention Centre, Vientiane')).toHaveCount(0);
+
+		// ...and the document was never thrown away.
+		expect(
+			await page.evaluate(() => (window as Window & { __sameDocument?: true }).__sameDocument)
+		).toBe(true);
+	});
+
+	/*
+	 * /news failed the same way for a different reason, so it needs its own case: it reads
+	 * `url.searchParams`, which records only the individual params it asked for. A path
+	 * prefix change produces an empty search diff, so the finer-grained tracking made the
+	 * page look covered while leaving it exactly as stale.
+	 */
+	test('switching language re-fetches a filtered news list', async ({ page }) => {
+		await page.goto('/en/news?q=AWS');
+		await routerReady(page);
+		await expect(page.getByText('Recap: AWS Community Day 2025').first()).toBeVisible();
+
+		await page.getByRole('link', { name: 'ພາສາລາວ' }).first().click();
+
+		await expect(page).toHaveURL(/\/news\?q=AWS$/);
+		await expect(page.getByText('ສະຫຼຸບງານ AWS Community Day 2025').first()).toBeVisible();
 	});
 
 	test('event detail shows schedule and a registration form', async ({ page }) => {

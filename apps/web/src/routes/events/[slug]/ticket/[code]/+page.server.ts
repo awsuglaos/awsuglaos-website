@@ -1,13 +1,16 @@
-import { getLocale } from '$lib/paraglide/runtime';
 import { getContext } from '$lib/server/context';
+import { localeOf } from '$lib/server/locale';
 import { registrationService } from '@awsug/core';
 import { isDomainError } from '@awsug/shared';
 import { error } from '@sveltejs/kit';
 import QRCode from 'qrcode';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, setHeaders }) => {
+export const load: PageServerLoad = async ({ params, url, setHeaders }) => {
 	const ctx = await getContext();
+	// Read before the query: the URL is what declares this load's dependency
+	// on the language, and a read from inside the closure below would be too late.
+	const locale = localeOf(url);
 
 	let ticket;
 	try {
@@ -47,7 +50,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
 
 	const translation =
 		(await ctx.db.query.eventTranslations.findFirst({
-			where: (t, { and, eq }) => and(eq(t.eventId, ticket.event.id), eq(t.locale, getLocale()))
+			where: (t, { and, eq }) => and(eq(t.eventId, ticket.event.id), eq(t.locale, locale))
 		})) ??
 		(await ctx.db.query.eventTranslations.findFirst({
 			where: (t, { eq }) => eq(t.eventId, ticket.event.id)

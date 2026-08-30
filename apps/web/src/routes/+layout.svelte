@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import Footer from '$lib/components/Footer.svelte';
 	import Header from '$lib/components/Header.svelte';
+	import { currentLocale } from '$lib/locale';
 	import { ModeWatcher } from 'mode-watcher';
 
 	let { children } = $props();
@@ -15,18 +16,18 @@
 	 * The locale prefix is stripped first: paraglide localises every path, so
 	 * the backoffice is reachable at both /admin and /en/admin.
 	 */
-	let isBackoffice = $derived(
-		page.url.pathname.replace(/^\/en(?=\/|$)/, '').startsWith('/admin')
-	);
+	let isBackoffice = $derived(page.url.pathname.replace(/^\/en(?=\/|$)/, '').startsWith('/admin'));
 
 	/*
-	 * Switching language is a client-side navigation, which leaves this layout mounted —
-	 * so without help the header and footer would keep rendering the previous language's
-	 * labels. Re-keying the shell on the locale re-renders it, which is what lets the
-	 * language toggle avoid a full document reload. Derived from the path rather than from
-	 * `getLocale()` so it tracks the URL SvelteKit has actually navigated to.
+	 * Switching language is a client-side navigation, which leaves this layout mounted.
+	 * Everything the app writes itself now follows the URL on its own — the server loads
+	 * derive their locale from `url`, and `$lib/locale` reads `page.url` — but the
+	 * compiled paraglide message functions do not: each one calls `getLocale()` inside
+	 * generated code, so `m.nav_events()` only picks up a new language when the component
+	 * holding it re-renders. Re-keying the shell below is what forces that, and is why the
+	 * toggle can be a plain link rather than a full document reload.
 	 */
-	let locale = $derived(/^\/en(\/|$)/.test(page.url.pathname) ? 'en' : 'lo');
+	let locale = $derived(currentLocale());
 
 	/*
 	 * `<html lang>` is stamped by paraglide at SSR and would otherwise go stale after a
