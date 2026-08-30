@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Schema — content, and one row per language",
+    "output": "data-model.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1280,
+      820
+    ],
+    "repository": {
+      "url": "https://github.com/awsuglaos/awsuglaos-website",
+      "revision": "633ed881284ead6e1a1d148e11db0dbd1656ab4e"
+    },
+    "views": [
+      {
+        "id": "translation-pattern",
+        "label": "The translation pattern",
+        "focus": [
+          "articles",
+          "articleTr",
+          "events",
+          "eventTr",
+          "speakers",
+          "speakerTr"
+        ],
+        "note": "Every translatable table has a child keyed on (parent_id, locale). Adding a language is a data change."
+      },
+      {
+        "id": "event-cluster",
+        "label": "Around an event",
+        "focus": [
+          "events",
+          "registrations",
+          "feedback",
+          "eventExtras"
+        ],
+        "note": "Registrations, the line-up, sponsors and files all hang off the event."
+      },
+      {
+        "id": "people",
+        "label": "People and inbox",
+        "focus": [
+          "users",
+          "articles",
+          "registrations",
+          "publicInbox"
+        ],
+        "note": "Backoffice identity, authorship, and the two public inboxes."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "articleTr",
+      "type": "database",
+      "label": "article_translations",
+      "sublabel": "unique (article_id, locale)",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        230,
+        86
+      ],
+      "sources": [
+        {
+          "path": "packages/db/src/schema.ts",
+          "line": 139
+        }
+      ]
+    },
+    {
+      "id": "eventTr",
+      "type": "database",
+      "label": "event_translations",
+      "sublabel": "unique (event_id, locale)",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        230,
+        86
+      ],
+      "sources": [
+        {
+          "path": "packages/db/src/schema.ts",
+          "line": 221
+        }
+      ]
+    },
+    {
+      "id": "speakerTr",
+      "type": "database",
+      "label": "speaker_translations",
+      "sublabel": "unique (speaker_id, locale)",
+      "pos": [
+        40,
+        500
+      ],
+      "size": [
+        230,
+        86
+      ],
+      "sources": [
+        {
+          "path": "packages/db/src/schema.ts",
+          "line": 377
+        }
+      ]
+    },
+    {
+      "id": "articles",
+      "type": "database",
+      "label": "articles",
+      "sublabel": "slug · category · status",
+      "pos": [
+        400,
+        100
+      ],
+      "size": [
+        200,
+        86
+      ]
+    },
+    {
+      "id": "events",
+      "type": "database",
+      "label": "events",
+      "sublabel": "slug · dates · form_schema",
+      "pos": [
+        400,
+        300
+      ],
+      "size": [
+        200,
+        86
+      ]
+    },
+    {
+      "id": "speakers",
+      "type": "database",
+      "label": "speakers",
+      "sublabel": "slug · community_role",
+      "pos": [
+        400,
+        500
+      ],
+      "size": [
+        200,
+        86
+      ]
+    },
+    {
+      "id": "registrations",
+      "type": "database",
+      "label": "registrations",
+      "sublabel": "answers jsonb · ticket_code",
+      "pos": [
+        690,
+        190
+      ],
+      "size": [
+        210,
+        86
+      ],
+      "sources": [
+        {
+          "path": "packages/db/src/schema.ts",
+          "line": 292
+        }
+      ]
+    },
+    {
+      "id": "eventExtras",
+      "type": "database",
+      "label": "event_speakers · sponsors",
+      "sublabel": "resources · photos",
+      "pos": [
+        690,
+        430
+      ],
+      "size": [
+        210,
+        86
+      ]
+    },
+    {
+      "id": "publicInbox",
+      "type": "database",
+      "label": "site_feedback",
+      "sublabel": "newsletter_subs",
+      "pos": [
+        690,
+        650
+      ],
+      "size": [
+        210,
+        86
+      ]
+    },
+    {
+      "id": "users",
+      "type": "database",
+      "label": "users",
+      "sublabel": "cognito_sub · admin|editor",
+      "pos": [
+        990,
+        100
+      ],
+      "size": [
+        200,
+        86
+      ]
+    },
+    {
+      "id": "feedback",
+      "type": "database",
+      "label": "event_feedback",
+      "sublabel": "unique registration_id",
+      "pos": [
+        990,
+        280
+      ],
+      "size": [
+        200,
+        86
+      ],
+      "sources": [
+        {
+          "path": "packages/db/src/schema.ts",
+          "line": 544
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "One row per language · check locale in ('lo','en')",
+      "wraps": [
+        "articleTr",
+        "eventTr",
+        "speakerTr"
+      ],
+      "pad": 16
+    }
+  ],
+  "connections": [
+    {
+      "id": "article-tr",
+      "from": "articles",
+      "to": "articleTr",
+      "label": "one row per locale",
+      "variant": "emphasis"
+    },
+    {
+      "id": "event-tr",
+      "from": "events",
+      "to": "eventTr",
+      "label": "one row per locale",
+      "variant": "emphasis"
+    },
+    {
+      "id": "speaker-tr",
+      "from": "speakers",
+      "to": "speakerTr",
+      "label": "one row per locale",
+      "variant": "emphasis"
+    },
+    {
+      "id": "event-regs",
+      "from": "events",
+      "to": "registrations",
+      "label": "one per attendee"
+    },
+    {
+      "id": "reg-feedback",
+      "from": "registrations",
+      "to": "feedback",
+      "label": "at most one"
+    },
+    {
+      "id": "reviewed-by",
+      "from": "users",
+      "to": "registrations",
+      "label": "reviewed_by"
+    },
+    {
+      "id": "author",
+      "from": "users",
+      "to": "articles",
+      "label": "author_id"
+    },
+    {
+      "id": "event-extras",
+      "from": "events",
+      "to": "eventExtras",
+      "label": "line-up, sponsors, files",
+      "labelDx": 80
+    },
+    {
+      "id": "inbox-event",
+      "from": "events",
+      "to": "publicInbox",
+      "label": "optional event_id",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Why a side table and not a column pair",
+      "items": [
+        "Each translatable table has a child keyed unique on (parent_id, locale)",
+        "A check constraint pins locale to 'lo' or 'en', so a typo cannot create a third language",
+        "Adding a real third language is an INSERT — title_lo / title_en columns would need a migration"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The slug stays on the parent",
+      "items": [
+        "One item has one slug, so /events/x and /en/events/x are the same event",
+        "A link shared in Lao still opens in English for a reader who switched",
+        "Lao is the base: an English row is optional, and its absence is shown, not hidden"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Also translated, also jsonb",
+      "items": [
+        "event_speakers carries its own translations for talk_title and abstract",
+        "Article content, event descriptions and speaker bios are TipTap documents in jsonb",
+        "They are sanitised and rendered to HTML server-side, never trusted from the client"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Constraints doing real work",
+      "items": [
+        "unique (event_id, lower(email)) stops one address registering twice, and lets NULLs through",
+        "unique registration_id on event_feedback is the one-response-per-ticket guarantee",
+        "events checks end_at > start_at and capacity >= 0, so a broken event cannot be saved"
+      ]
+    }
+  ]
+}

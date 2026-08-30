@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "awsug.la — AWS deployment topology",
+    "output": "system-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/awsuglaos/awsuglaos-website",
+      "revision": "633ed881284ead6e1a1d148e11db0dbd1656ab4e"
+    },
+    "viewBox": [
+      1370,
+      820
+    ],
+    "views": [
+      {
+        "id": "public-path",
+        "label": "Public request path",
+        "focus": [
+          "visitor",
+          "cloudfront",
+          "webLambda",
+          "core",
+          "aurora"
+        ],
+        "note": "A visitor's page render, from the edge to Postgres, with no HTTP hop inside it."
+      },
+      {
+        "id": "backoffice-path",
+        "label": "Backoffice path",
+        "focus": [
+          "organiser",
+          "cloudfront",
+          "webLambda",
+          "cognito",
+          "honoApi",
+          "core"
+        ],
+        "note": "The organiser's route: signed in through Cognito, then server-to-server to the Hono API."
+      },
+      {
+        "id": "vpc-crossing",
+        "label": "The VPC crossing",
+        "focus": [
+          "core",
+          "aurora"
+        ],
+        "note": "Both functions stay outside the VPC and reach Aurora over the Data API's HTTPS endpoint."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "visitor",
+      "type": "external",
+      "label": "Visitor",
+      "sublabel": "Browser · lo / en",
+      "pos": [
+        30,
+        220
+      ],
+      "size": [
+        140,
+        70
+      ]
+    },
+    {
+      "id": "organiser",
+      "type": "external",
+      "label": "Organiser",
+      "sublabel": "Backoffice user",
+      "pos": [
+        30,
+        600
+      ],
+      "size": [
+        140,
+        70
+      ]
+    },
+    {
+      "id": "cloudfront",
+      "type": "cloud",
+      "label": "CloudFront",
+      "sublabel": "SST Router · one domain",
+      "pos": [
+        250,
+        340
+      ],
+      "size": [
+        170,
+        84
+      ],
+      "sources": [
+        {
+          "path": "sst.config.ts",
+          "line": 121,
+          "label": "sst.aws.Router"
+        }
+      ]
+    },
+    {
+      "id": "uploads",
+      "type": "cloud",
+      "label": "S3 — Uploads",
+      "sublabel": "private · OAC",
+      "pos": [
+        250,
+        610
+      ],
+      "size": [
+        170,
+        78
+      ],
+      "sources": [
+        {
+          "path": "sst.config.ts",
+          "line": 157,
+          "label": "access: 'cloudfront'"
+        }
+      ]
+    },
+    {
+      "id": "cognito",
+      "type": "security",
+      "label": "Cognito Hosted UI",
+      "sublabel": "PKCE · no client secret",
+      "pos": [
+        490,
+        60
+      ],
+      "size": [
+        205,
+        82
+      ],
+      "sources": [
+        {
+          "path": "sst.config.ts",
+          "line": 189,
+          "label": "CognitoUserPool"
+        }
+      ]
+    },
+    {
+      "id": "webLambda",
+      "type": "backend",
+      "label": "SvelteKit Lambda",
+      "sublabel": "SSR · 30s timeout",
+      "pos": [
+        490,
+        240
+      ],
+      "size": [
+        205,
+        84
+      ],
+      "sources": [
+        {
+          "path": "sst.config.ts",
+          "line": 444,
+          "label": "sst.aws.SvelteKit"
+        }
+      ]
+    },
+    {
+      "id": "honoApi",
+      "type": "backend",
+      "label": "API Gateway → Hono",
+      "sublabel": "arm64 · 512 MB · 20s",
+      "pos": [
+        490,
+        600
+      ],
+      "size": [
+        205,
+        90
+      ],
+      "sources": [
+        {
+          "path": "sst.config.ts",
+          "line": 391,
+          "label": "api.route('$default')"
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "@awsug/core",
+      "sublabel": "domain services · Drizzle",
+      "pos": [
+        765,
+        390
+      ],
+      "size": [
+        215,
+        92
+      ],
+      "sources": [
+        {
+          "path": "packages/core/src/services/events.ts",
+          "label": "one of eleven services"
+        }
+      ]
+    },
+    {
+      "id": "email",
+      "type": "external",
+      "label": "Resend → SES",
+      "sublabel": "console in dev",
+      "pos": [
+        1120,
+        170
+      ],
+      "size": [
+        215,
+        78
+      ],
+      "sources": [
+        {
+          "path": "packages/core/src/email/select.ts",
+          "label": "adapter chain"
+        }
+      ]
+    },
+    {
+      "id": "aurora",
+      "type": "database",
+      "label": "Aurora Serverless v2",
+      "sublabel": "Postgres · scales to 0 ACU",
+      "pos": [
+        1120,
+        430
+      ],
+      "size": [
+        215,
+        96
+      ],
+      "sources": [
+        {
+          "path": "sst.config.ts",
+          "line": 54,
+          "label": "dataApi: true"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Outside the VPC — every function lives here",
+      "wraps": [
+        "cloudfront",
+        "uploads",
+        "cognito",
+        "webLambda",
+        "honoApi",
+        "core"
+      ],
+      "pad": 12
+    },
+    {
+      "kind": "security-group",
+      "label": "VPC · no NAT Gateway",
+      "wraps": [
+        "aurora"
+      ],
+      "pad": 12
+    }
+  ],
+  "connections": [
+    {
+      "id": "visitor-edge",
+      "from": "visitor",
+      "to": "cloudfront",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "organiser-edge",
+      "from": "organiser",
+      "to": "cloudfront",
+      "label": "HTTPS"
+    },
+    {
+      "id": "pages-origin",
+      "from": "cloudfront",
+      "to": "webLambda",
+      "label": "/*"
+    },
+    {
+      "id": "uploads-origin",
+      "from": "cloudfront",
+      "to": "uploads",
+      "label": "/uploads/*",
+      "variant": "dashed",
+      "labelDy": 106
+    },
+    {
+      "id": "sign-in",
+      "from": "cognito",
+      "to": "webLambda",
+      "label": "ID token → httpOnly cookie",
+      "variant": "security",
+      "labelDy": 69
+    },
+    {
+      "id": "public-in-process",
+      "from": "webLambda",
+      "to": "core",
+      "label": "in-process — no HTTP hop",
+      "variant": "emphasis"
+    },
+    {
+      "id": "backoffice-hop",
+      "from": "webLambda",
+      "to": "honoApi",
+      "label": "Bearer ID token · server-to-server",
+      "labelDy": 158
+    },
+    {
+      "id": "api-in-process",
+      "from": "honoApi",
+      "to": "core",
+      "label": "same services"
+    },
+    {
+      "id": "data-api",
+      "from": "core",
+      "to": "aurora",
+      "label": "RDS Data API · HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "send-mail",
+      "from": "core",
+      "to": "email",
+      "label": "tickets, confirmations",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One distribution, two origins",
+      "items": [
+        "The Router is created empty, then routed once the bucket exists",
+        "/uploads/* is the more specific route, so it beats the app's default /*",
+        "Uploads are same-origin: no second domain, no CORS on reads"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Two entry points, one rulebook",
+      "items": [
+        "Public pages call the domain services in-process — no network hop",
+        "The backoffice calls the Hono API server-to-server; the browser never holds a token",
+        "Both land on the same @awsug/core services, so rules cannot drift"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Identity is Cognito, authorisation is the database",
+      "items": [
+        "Hosted UI with authorization-code + PKCE; the exchange happens server-side",
+        "The API verifies with aws-jwt-verify using tokenUse 'id' — it needs the email claim",
+        "A verified token still needs a matching users row, or it is a 403"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "The crossing that pays for the rest",
+      "items": [
+        "Aurora is the only thing inside the VPC; both Lambdas stay outside it",
+        "They reach it over the Data API's HTTPS endpoint — so no NAT Gateway, ~$43/month saved",
+        "Auto-pause is incompatible with RDS Proxy, which is the second reason for the Data API"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Registration to check-in",
+    "output": "registration-to-checkin.html",
+    "quality_profile": "showcase",
+    "viewBox": [800, 880],
+    "views": [
+      {
+        "id": "register",
+        "label": "Taking a seat",
+        "focus": ["visitor", "web", "core", "db"],
+        "note": "The insert and the capacity test happen in one statement, so the last seat cannot go twice."
+      },
+      {
+        "id": "approval",
+        "label": "Approval events",
+        "focus": ["core", "mail", "organiser", "db"],
+        "note": "Only events flagged requiresApproval take this detour; the rest confirm immediately."
+      },
+      {
+        "id": "attend",
+        "label": "Ticket and door",
+        "focus": ["mail", "visitor", "web", "organiser", "core"],
+        "note": "The QR exists only for an approved registration, and only for as long as the page is rendered."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "visitor", "type": "external", "label": "Visitor", "sublabel": "browser" },
+    { "id": "web", "type": "frontend", "label": "SvelteKit", "sublabel": "form action" },
+    { "id": "core", "type": "backend", "label": "@awsug/core", "sublabel": "registrationService" },
+    { "id": "db", "type": "database", "label": "Postgres", "sublabel": "registrations" },
+    { "id": "mail", "type": "messagebus", "label": "Email", "sublabel": "Resend → SES" },
+    { "id": "organiser", "type": "external", "label": "Organiser", "sublabel": "backoffice" }
+  ],
+  "segments": [
+    { "from": 160, "to": 315, "label": "Register" },
+    { "from": 330, "to": 485, "label": "Review — approval events only" },
+    { "from": 500, "to": 675, "label": "Attend" },
+    { "from": 690, "to": 765, "label": "Afterwards" }
+  ],
+  "messages": [
+    { "id": "submit", "from": "visitor", "to": "web", "y": 185, "label": "submit the organiser's form", "variant": "default", "note": "Fields come from the event's own form_schema, so an unasked question cannot smuggle an answer in." },
+    { "id": "register-call", "from": "web", "to": "core", "y": 222, "label": "registerForEvent(answers)", "variant": "emphasis" },
+    { "id": "claim-seat", "from": "core", "to": "db", "y": 260, "label": "one UPDATE claims the seat", "variant": "emphasis", "note": "The capacity test lives inside the statement, so two callers cannot both take the last place." },
+    { "id": "ticket-issued", "from": "db", "to": "core", "y": 298, "label": "ticket_code · pending or approved", "variant": "return" },
+    { "id": "received-mail", "from": "core", "to": "mail", "y": 350, "label": "\"received\" — no QR yet", "variant": "dashed", "note": "A pending applicant has a live ticket URL but no scannable pass; the page shows them where they stand." },
+    { "id": "review", "from": "organiser", "to": "core", "y": 388, "label": "reviewRegistrations(approve)", "variant": "default" },
+    { "id": "seat-on-approval", "from": "core", "to": "db", "y": 426, "label": "capacity re-tested — a full room stays queued", "variant": "default" },
+    { "id": "confirm-mail", "from": "core", "to": "mail", "y": 464, "label": "confirmation + QR ticket", "variant": "emphasis" },
+    { "id": "ticket-link", "from": "mail", "to": "visitor", "y": 515, "label": "ticket link", "variant": "return" },
+    { "id": "open-ticket", "from": "visitor", "to": "web", "y": 550, "label": "/events/[slug]/ticket/[code]", "variant": "default" },
+    { "id": "render-qr", "from": "web", "to": "visitor", "y": 585, "label": "inline SVG QR — approved only", "variant": "return", "note": "Rendered per request rather than stored, so a reissued ticket leaves nothing stale behind." },
+    { "id": "scan", "from": "organiser", "to": "core", "y": 620, "label": "checkIn(scanned code)", "variant": "emphasis" },
+    { "id": "stamp", "from": "core", "to": "db", "y": 655, "label": "set checked_in_at WHERE it is still NULL", "variant": "default" },
+    { "id": "feedback-open", "from": "visitor", "to": "web", "y": 705, "label": "feedback link, once endAt has passed", "variant": "default" },
+    { "id": "one-response", "from": "web", "to": "db", "y": 743, "label": "unique on registration_id", "variant": "default" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "The last seat cannot go twice",
+      "items": [
+        "The seat claim is a conditional UPDATE with the capacity test inside it",
+        "Two simultaneous registrants race the same row, and one of them loses cleanly",
+        "capacity = 0 means uncapped, and the same statement handles it"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "The seat follows the status, not the row",
+      "items": [
+        "On an approval event the count stays put until an organiser decides",
+        "So registeredCount always means \"people who are coming\", never \"forms received\"",
+        "Approving a queue that no longer fits stops at the capacity line instead of overselling"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "The ticket is a URL, not a file",
+      "items": [
+        "The QR is rendered as inline SVG on each request — nothing in S3, nothing to clean up",
+        "It is null until the registration is approved, so a pending applicant gets no scannable pass",
+        "Check-in is idempotent: the stamp only lands while checked_in_at is still NULL"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Feedback opens on the clock",
+      "items": [
+        "The link resolves only once the event's endAt has passed",
+        "A unique index on registration_id is the real guarantee of one response per ticket",
+        "Two tabs on the same ticket hit that index rather than a check that can race"
+      ]
+    }
+  ]
+}
